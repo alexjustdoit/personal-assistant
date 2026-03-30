@@ -19,7 +19,7 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - Windows 10/11 (runs natively — no WSL required)
 - Python 3.11+
 - [Ollama](https://ollama.com) installed and running
-- A pulled Ollama model (e.g. `ollama pull llama3.2`)
+- A pulled Ollama model (e.g. `ollama pull llama3.1:8b`)
 
 ## Setup
 
@@ -53,7 +53,7 @@ Open `config.yaml` and set:
 
 | Key | Description |
 |---|---|
-| `llm.model` | Ollama model name (e.g. `llama3.2`) |
+| `llm.model` | Ollama model name (e.g. `llama3.1:8b`) |
 | `llm.ollama_url` | Ollama URL — default `http://localhost:11434` |
 | `anthropic_api_key` | Optional — for Claude quality routing |
 | `openai_api_key` | Optional — for OpenAI quality routing |
@@ -63,7 +63,7 @@ Open `config.yaml` and set:
 Make sure Ollama is running and your model is pulled:
 
 ```powershell
-ollama pull llama3.2
+ollama pull llama3.1:8b
 ```
 
 ### 6. Run the assistant
