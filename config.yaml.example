@@ -8,6 +8,17 @@ llm:
   ollama_url: http://localhost:11434
   quality_model: claude  # used for quality_required=True tasks
 
+stt:
+  enabled: true
+  model: base          # tiny | base | small | medium | large-v3
+  device: cuda         # cuda | cpu
+  compute_type: float16  # float16 (GPU) | int8 (CPU)
+
+tts:
+  enabled: true
+  voice: af_heart      # af_heart | af_bella | af_nicole | am_adam | am_michael
+  speed: 1.0
+
 # Leave blank if not using
 anthropic_api_key: ""
 openai_api_key: ""

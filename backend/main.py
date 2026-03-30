@@ -2,12 +2,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from backend.routers import chat
+from backend.routers import chat, voice
 from backend.services.llm import llm_router
 
 app = FastAPI(title="Home Assistant")
 
 app.include_router(chat.router)
+app.include_router(voice.router)
 
 frontend_path = Path(__file__).parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=frontend_path), name="static")
