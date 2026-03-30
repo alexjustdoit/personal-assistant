@@ -1,0 +1,14 @@
+server:
+  host: 0.0.0.0
+  port: 8000
+
+llm:
+  provider: ollama       # ollama | claude | openai
+  model: llama3.2
+  ollama_url: http://localhost:11434
+  quality_model: claude  # used for quality_required=True tasks
+
+# Leave blank if not using
+anthropic_api_key: ""
+openai_api_key: ""
+openai_model: gpt-4o-mini

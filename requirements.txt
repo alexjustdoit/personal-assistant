@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+websockets
+httpx
+ollama
+pydantic
+pyyaml
+anthropic
+openai
