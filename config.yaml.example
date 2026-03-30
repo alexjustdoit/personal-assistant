@@ -4,7 +4,7 @@ server:
 
 llm:
   provider: ollama       # ollama | claude | openai
-  model: llama3.2
+  model: llama3.1:8b
   ollama_url: http://localhost:11434
   quality_model: claude  # used for quality_required=True tasks
 
