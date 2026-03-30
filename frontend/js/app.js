@@ -1,4 +1,5 @@
 const messagesEl = document.getElementById('messages');
+const welcomeEl = document.getElementById('welcome');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const statusDot = document.getElementById('status-dot');
@@ -39,7 +40,15 @@ function connect() {
   };
 }
 
+function showMessages() {
+  if (!welcomeEl.classList.contains('hidden')) {
+    welcomeEl.classList.add('hidden');
+    messagesEl.classList.remove('hidden');
+  }
+}
+
 function appendMessage(role, content = '') {
+  showMessages();
   const wrapper = document.createElement('div');
   wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
 
@@ -136,6 +145,13 @@ async function loadProviders() {
     providerSelect.innerHTML = '<option value="ollama">Ollama</option>';
   }
 }
+
+document.querySelectorAll('.suggestion-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    inputEl.value = chip.dataset.prompt;
+    sendMessage();
+  });
+});
 
 connect();
 loadProviders();
