@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 from backend.routers import chat
+from backend.services.llm import llm_router
 
 app = FastAPI(title="Home Assistant")
 
@@ -20,3 +21,11 @@ async def serve_ui():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/providers")
+async def get_providers():
+    return {
+        "providers": llm_router.available_providers(),
+        "default": llm_router.provider,
+    }

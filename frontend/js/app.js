@@ -2,6 +2,7 @@ const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const statusDot = document.getElementById('status-dot');
+const providerSelect = document.getElementById('provider-select');
 
 const WS_URL = `ws://${location.host}/ws/chat`;
 let socket = null;
@@ -108,7 +109,7 @@ function sendMessage() {
   setInputEnabled(false);
   startAssistantBubble();
 
-  socket.send(JSON.stringify({ type: 'message', content }));
+  socket.send(JSON.stringify({ type: 'message', content, provider: providerSelect.value }));
 }
 
 sendBtn.addEventListener('click', sendMessage);
@@ -119,4 +120,22 @@ inputEl.addEventListener('keydown', (e) => {
   }
 });
 
+async function loadProviders() {
+  try {
+    const res = await fetch('/api/providers');
+    const data = await res.json();
+    providerSelect.innerHTML = '';
+    for (const p of data.providers) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      if (p.id === data.default) opt.selected = true;
+      providerSelect.appendChild(opt);
+    }
+  } catch {
+    providerSelect.innerHTML = '<option value="ollama">Ollama</option>';
+  }
+}
+
 connect();
+loadProviders();

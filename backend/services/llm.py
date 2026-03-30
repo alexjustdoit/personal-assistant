@@ -13,12 +13,26 @@ class LLMRouter:
         self.openai_key = config.get("openai_api_key", "")
         self.openai_model = config.get("openai_model", "gpt-4o-mini")
 
+    def available_providers(self) -> list[dict]:
+        providers = [{"id": "ollama", "label": f"Ollama — {self.model}"}]
+        if self.anthropic_key:
+            providers.append({"id": "claude", "label": "Claude — Haiku"})
+        if self.openai_key:
+            providers.append({"id": "openai", "label": f"OpenAI — {self.openai_model}"})
+        return providers
+
     async def stream(
         self,
         messages: list[dict],
         quality_required: bool = False,
+        provider_override: str | None = None,
     ) -> AsyncGenerator[str, None]:
-        provider = self.quality_model if quality_required else self.provider
+        if provider_override:
+            provider = provider_override
+        elif quality_required:
+            provider = self.quality_model
+        else:
+            provider = self.provider
 
         if provider == "ollama":
             async for token in self._stream_ollama(messages):

@@ -27,13 +27,14 @@ async def chat_websocket(websocket: WebSocket):
             if not user_message:
                 continue
 
+            provider_override = payload.get("provider") or None
             sessions[session_id].append({"role": "user", "content": user_message})
 
             messages = [{"role": "system", "content": SYSTEM_PROMPT}] + sessions[session_id]
 
             full_response = ""
             try:
-                async for token in llm_router.stream(messages):
+                async for token in llm_router.stream(messages, provider_override=provider_override):
                     full_response += token
                     await websocket.send_text(json.dumps({"type": "token", "content": token}))
 
