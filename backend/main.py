@@ -24,6 +24,12 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/history/{session_id}")
+async def get_history(session_id: str):
+    from backend.services.memory import memory_service
+    return {"messages": memory_service.get_history(session_id)}
+
+
 @app.get("/api/providers")
 async def get_providers():
     return {

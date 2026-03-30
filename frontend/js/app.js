@@ -7,7 +7,17 @@ const ttsToggle = document.getElementById('tts-toggle');
 const statusDot = document.getElementById('status-dot');
 const providerSelect = document.getElementById('provider-select');
 
-const WS_URL = `ws://${location.host}/ws/chat`;
+function getSessionId() {
+  let id = localStorage.getItem('session_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('session_id', id);
+  }
+  return id;
+}
+
+const SESSION_ID = getSessionId();
+const WS_URL = `ws://${location.host}/ws/chat?session_id=${SESSION_ID}`;
 let socket = null;
 let isStreaming = false;
 
@@ -268,6 +278,20 @@ async function initVoice() {
   }
 }
 
+async function loadHistory() {
+  try {
+    const res = await fetch(`/api/history/${SESSION_ID}`);
+    const data = await res.json();
+    if (data.messages && data.messages.length > 0) {
+      for (const msg of data.messages) {
+        appendMessage(msg.role, msg.content);
+      }
+    }
+  } catch {
+    // History load failure is non-fatal
+  }
+}
+
 document.querySelectorAll('.suggestion-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     inputEl.value = chip.dataset.prompt;
@@ -278,3 +302,4 @@ document.querySelectorAll('.suggestion-chip').forEach(chip => {
 connect();
 loadProviders();
 initVoice();
+loadHistory();
