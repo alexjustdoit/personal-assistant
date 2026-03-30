@@ -8,6 +8,7 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - **Voice input** — push-to-talk via browser mic on any device
 - **Streaming responses** — tokens stream in real time
 - **LLM routing** — Ollama (local/free) by default, optional Claude or OpenAI for quality tasks
+- **Provider selector** — switch between LLMs at runtime via dropdown in the UI
 - **Persistent memory** — remembers context and things you tell it *(Phase 3)*
 - **Morning briefings** — weather, calendar, and news digest delivered daily *(Phase 4)*
 - **Push notifications** — reminders via ntfy to phone or browser *(Phase 4)*
@@ -82,7 +83,9 @@ By default all requests go to Ollama (free, local). To use Claude or OpenAI:
 1. Add your API key to `config.yaml`
 2. Set `llm.quality_model` to `claude` or `openai`
 
-Quality routing is used for tasks that need higher accuracy (Phase 4+). Normal chat always uses Ollama.
+A provider dropdown appears in the top-right of the UI, letting you switch models at runtime without touching config. Only providers with a configured API key are shown — a fresh install with no API keys shows Ollama only.
+
+Quality routing is used for tasks that need higher accuracy (Phase 4+). Normal chat uses whichever provider is selected in the UI.
 
 ## Project Structure
 
