@@ -7,6 +7,18 @@ from backend.services.llm import llm_router
 
 app = FastAPI(title="Home Assistant")
 
+
+@app.on_event("startup")
+async def startup():
+    from backend.services.scheduler import scheduler_service
+    scheduler_service.start()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    from backend.services.scheduler import scheduler_service
+    scheduler_service.stop()
+
 app.include_router(chat.router)
 app.include_router(voice.router)
 

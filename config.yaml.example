@@ -19,6 +19,30 @@ tts:
   voice: af_heart      # af_heart | af_bella | af_nicole | am_adam | am_michael
   speed: 1.0
 
+briefing:
+  enabled: true
+  time: "07:00"        # 24hr format
+  timezone: "America/New_York"  # IANA timezone name
+
+weather:
+  enabled: true
+  api_key: ""          # OpenWeatherMap API key (free tier)
+  city: "New York,US"  # City name or "City,CountryCode"
+  units: imperial      # imperial (°F) | metric (°C)
+
+calendar:
+  enabled: false
+  ical_url: ""         # Private iCal URL from Google/Outlook/Apple Calendar
+
+news:
+  enabled: true
+  api_key: ""          # Tavily API key (free tier)
+  topics: []           # e.g. ["technology", "Formula 1", "local news"]
+
+notifications:
+  ntfy_url: "https://ntfy.sh"
+  ntfy_topic: ""       # Your unique topic name (e.g. "my-assistant-abc123")
+
 # Leave blank if not using
 anthropic_api_key: ""
 openai_api_key: ""

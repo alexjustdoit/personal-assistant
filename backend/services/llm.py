@@ -46,6 +46,13 @@ class LLMRouter:
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
+    async def complete(self, messages: list[dict]) -> str:
+        """Non-streaming completion using local Ollama. Used for extraction and briefing tasks."""
+        result = ""
+        async for token in self._stream_ollama(messages):
+            result += token
+        return result.strip()
+
     async def _stream_ollama(self, messages: list[dict]) -> AsyncGenerator[str, None]:
         import ollama
         client = ollama.AsyncClient(host=self.ollama_url)

@@ -1,19 +1,59 @@
 import json
+import re
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backend.services.llm import llm_router
 from backend.services.memory import memory_service
 
 router = APIRouter()
 
+REMINDER_TRIGGER = re.compile(r"(?i)\b(remind me|set a reminder|reminder)\b")
+
+
+async def extract_reminder(text: str) -> dict | None:
+    """Use LLM to extract task and time from a potential reminder message."""
+    response = await llm_router.complete([
+        {
+            "role": "system",
+            "content": "Extract reminder details from the user message. Respond with JSON only, no other text.",
+        },
+        {
+            "role": "user",
+            "content": (
+                f'Message: "{text}"\n\n'
+                'Return JSON: {"task": "the reminder task", "time_str": "natural language time or null"}\n'
+                'If not a reminder, return: {"task": null}'
+            ),
+        },
+    ])
+    json_match = re.search(r"\{.*\}", response, re.DOTALL)
+    if not json_match:
+        return None
+    try:
+        data = json.loads(json_match.group())
+        return data if data.get("task") else None
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def parse_due_time(time_str: str | None) -> str | None:
+    if not time_str:
+        return None
+    try:
+        import dateparser
+        from datetime import timezone
+        dt = dateparser.parse(time_str, settings={"PREFER_DATES_FROM": "future", "RETURN_AS_TIMEZONE_AWARE": True})
+        if dt:
+            return dt.astimezone(timezone.utc).isoformat()
+    except Exception:
+        pass
+    return None
+
 
 @router.websocket("/ws/chat")
 async def chat_websocket(websocket: WebSocket):
     await websocket.accept()
 
-    # Session ID comes from the frontend (stored in localStorage)
     session_id = websocket.query_params.get("session_id", "default")
-
-    # Load persisted history for this session
     history = memory_service.get_history(session_id)
 
     try:
@@ -27,14 +67,22 @@ async def chat_websocket(websocket: WebSocket):
 
             provider_override = payload.get("provider") or None
 
-            # Check if user is asking to remember something
+            # Detect and save personal memory
             memory_text = memory_service.extract_memory(user_message)
             if memory_text:
                 memory_service.save_memory(memory_text)
 
-            # Retrieve relevant memories to inform the response
+            # Detect and save reminders
+            if REMINDER_TRIGGER.search(user_message):
+                reminder = await extract_reminder(user_message)
+                if reminder:
+                    due_time = parse_due_time(reminder.get("time_str"))
+                    memory_service.save_reminder(session_id, reminder["task"], due_time)
+
+            # Retrieve relevant memories and upcoming reminders for context
             relevant_memories = memory_service.search_memories(user_message)
-            system_prompt = memory_service.build_system_prompt(relevant_memories)
+            pending_reminders = memory_service.get_pending_reminders(session_id)
+            system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders)
 
             history.append({"role": "user", "content": user_message})
             memory_service.save_message(session_id, "user", user_message)

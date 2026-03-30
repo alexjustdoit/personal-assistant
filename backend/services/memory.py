@@ -41,6 +41,16 @@ class MemoryService:
                     timestamp TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    due_time TEXT,
+                    completed INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -93,6 +103,43 @@ class MemoryService:
         if results["ids"] and results["ids"][0]:
             col.delete(ids=[results["ids"][0][0]])
 
+    # --- SQLite: reminders ---
+
+    def save_reminder(self, session_id: str, text: str, due_time: str | None = None):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO reminders (session_id, text, due_time, created_at) VALUES (?, ?, ?, ?)",
+                (session_id, text, due_time, datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+
+    def get_pending_reminders(self, session_id: str | None = None) -> list[dict]:
+        with sqlite3.connect(DB_PATH) as conn:
+            if session_id:
+                rows = conn.execute(
+                    "SELECT id, text, due_time FROM reminders WHERE session_id = ? AND completed = 0 ORDER BY due_time",
+                    (session_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, text, due_time FROM reminders WHERE completed = 0 ORDER BY due_time",
+                ).fetchall()
+        return [{"id": r[0], "text": r[1], "due_time": r[2]} for r in rows]
+
+    def get_due_reminders(self) -> list[dict]:
+        now = datetime.utcnow().isoformat()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT id, text, due_time FROM reminders WHERE completed = 0 AND due_time IS NOT NULL AND due_time <= ?",
+                (now,),
+            ).fetchall()
+        return [{"id": r[0], "text": r[1], "due_time": r[2]} for r in rows]
+
+    def complete_reminder(self, reminder_id: int):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE reminders SET completed = 1 WHERE id = ?", (reminder_id,))
+            conn.commit()
+
     # --- Memory detection ---
 
     def extract_memory(self, text: str) -> str | None:
@@ -104,11 +151,18 @@ class MemoryService:
 
     # --- System prompt builder ---
 
-    def build_system_prompt(self, memories: list[str]) -> str:
-        if not memories:
-            return SYSTEM_BASE
-        lines = "\n".join(f"- {m}" for m in memories)
-        return f"{SYSTEM_BASE}\n\nThings you know about the user:\n{lines}"
+    def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None) -> str:
+        prompt = SYSTEM_BASE
+        if memories:
+            lines = "\n".join(f"- {m}" for m in memories)
+            prompt += f"\n\nThings you know about the user:\n{lines}"
+        if reminders:
+            lines = "\n".join(
+                f"- {r['text']}" + (f" (due: {r['due_time']})" if r.get("due_time") else "")
+                for r in reminders
+            )
+            prompt += f"\n\nUpcoming reminders:\n{lines}"
+        return prompt
 
 
 memory_service = MemoryService()
