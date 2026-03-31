@@ -33,8 +33,8 @@ class NotesWatcherService:
         for path_str in paths:
             path = Path(path_str).expanduser()
             if not path.exists():
-                print(f"[NotesWatcher] Path not found: {path_str}")
-                continue
+                path.mkdir(parents=True, exist_ok=True)
+                print(f"[NotesWatcher] Created folder: {path}")
             self._watched_paths.append(str(path))
             self._ingest_all(path)
             observer = Observer()

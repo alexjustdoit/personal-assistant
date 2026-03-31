@@ -108,6 +108,107 @@ Tip: right-click each `.bat` file → *Create shortcut* → move shortcuts to yo
 
 Service logs are written to `data\logs\assistant.log` (5 MB rotation).
 
+## Activity Tracking (Windows)
+
+The assistant passively logs your browser activity and active window on Windows, then uses those logs as context — so you can ask things like *"what was I working on this afternoon?"* without manually telling it anything.
+
+**What it tracks:**
+- Recent visits in Chrome and Edge — aggregated by domain with visit counts and page titles
+- The foreground window title at the time of each snapshot
+
+**How it works:**
+
+Every N minutes (default 30), the scheduler reads recent browser history from Chrome/Edge's local SQLite databases (safe to read while the browser is open — it copies the file first), samples the active window via the Windows API, and writes a markdown snapshot to your configured log folder. At the configured end-of-day time (default 10pm), all that day's snapshots are synthesized into a single summary note via the LLM.
+
+Both the individual snapshots and the daily summary are picked up by the notes watcher and made searchable.
+
+**Configuration (`config.yaml`):**
+
+```yaml
+activity_tracking:
+  enabled: true
+  log_folder: "C:\\Users\\you\\Notes\\activity"   # created automatically if it doesn't exist
+  poll_interval_minutes: 30
+  eod_summary_time: "22:00"
+  ignored_domains:          # exclude noisy or private domains
+    - mail.google.com
+    - linkedin.com
+```
+
+> You can also tell the assistant to ignore a domain via chat: *"stop logging LinkedIn"* or *"ignore reddit.com"*. It takes effect immediately and retroactively removes that domain from existing log files.
+
+**`notes_folders` — what it's for:**
+
+`notes_folders` is the list of directories the assistant watches and indexes for context. Add the activity log folder here so the assistant can search it. You can also add other personal notes folders (markdown or plain text files).
+
+```yaml
+notes_folders:
+  - "C:\\Users\\you\\Notes\\activity"   # activity logs (add this one at minimum)
+  - "C:\\Users\\you\\Notes\\personal"   # optional: your own notes
+```
+
+All folders are created automatically if they don't exist. Keep this list narrow — pointing it at a broad directory like Documents will ingest everything recursively.
+
+## Multi-Computer Activity Tracking
+
+The assistant runs on Windows, but you can feed it context from other machines on your network. Activity logs from other computers are picked up automatically and made available to the assistant as context — so it knows what you've been working on across devices.
+
+### Mac Activity Agent
+
+The mac-agent runs on any Mac on your network and logs browser activity and the active application every 30 minutes. Logs are written to iCloud Drive, which syncs them to Windows where the assistant picks them up automatically.
+
+**What it tracks:**
+- Recent visits across Safari, Chrome, and Edge — aggregated by domain with visit counts and page titles
+- The frontmost application at the time of the snapshot
+
+**How it works:**
+
+```
+Mac (launchd, every 30 min)
+  → reads Safari + Chrome + Edge history (SQLite)
+  → queries active app via AppleScript
+  → writes markdown snapshot to iCloud Drive (PA-Activity/)
+    → iCloud syncs to Windows
+      → personal assistant ingests it as context
+```
+
+**Setup (Mac):**
+
+```bash
+cd mac-agent
+cp config.yaml.example config.yaml
+# Edit config.yaml — set log_folder to your iCloud Drive PA-Activity path
+pip3 install pyyaml
+chmod +x install.sh && ./install.sh
+```
+
+Grant **Full Disk Access** to Terminal in System Settings → Privacy & Security → Full Disk Access. This is required to read Safari history. Chrome and Edge work without it.
+
+**Configuration (`mac-agent/config.yaml`):**
+
+```yaml
+log_folder: ~/Library/Mobile Documents/com~apple~CloudDocs/PA-Activity
+poll_interval_minutes: 30
+ignored_domains:        # optional — exclude noisy or private domains
+  - mail.google.com
+  - linkedin.com
+```
+
+**Manual run:**
+```bash
+python3 mac-agent/agent.py
+```
+
+**View agent logs:**
+```bash
+tail -f /tmp/pa-mac-agent.log
+```
+
+**Uninstall:**
+```bash
+./mac-agent/uninstall.sh
+```
+
 ## LLM Routing
 
 By default all requests go to Ollama (free, local). To use Claude or OpenAI:
@@ -182,6 +283,11 @@ personal-assistant/
 │       ├── home.js
 │       ├── chat.js
 │       └── setup.js
+├── mac-agent/                # Mac activity tracker (feeds context via iCloud)
+│   ├── agent.py              # Polls browser history + active app, writes markdown logs
+│   ├── config.yaml.example   # Config template (log_folder, poll_interval, ignored_domains)
+│   ├── install.sh            # Installs as a launchd job (runs every N minutes)
+│   └── uninstall.sh
 ├── data/                     # gitignored — conversations, memory, chroma DB
 ├── run.py                    # Start the server
 ├── config.yaml.example       # Reference config (copy to config.yaml)
