@@ -1,3 +1,95 @@
+// --- Sidebar ---
+
+const sidebar = document.getElementById('sidebar');
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const newChatBtn = document.getElementById('new-chat-btn');
+
+let sidebarOpen = window.innerWidth >= 1024;
+
+function setSidebar(open) {
+  sidebarOpen = open;
+  if (open) {
+    sidebar.classList.remove('sidebar-hidden');
+    sidebar.classList.add('sidebar-visible');
+  } else {
+    sidebar.classList.remove('sidebar-visible');
+    sidebar.classList.add('sidebar-hidden');
+  }
+  if (open && window.innerWidth < 1024) {
+    sidebarBackdrop.classList.remove('hidden');
+  } else {
+    sidebarBackdrop.classList.add('hidden');
+  }
+}
+
+sidebarToggle.addEventListener('click', () => setSidebar(!sidebarOpen));
+sidebarBackdrop.addEventListener('click', () => setSidebar(false));
+newChatBtn.addEventListener('click', () => {
+  localStorage.setItem('active_session_id', crypto.randomUUID());
+  window.location.href = '/chat';
+});
+
+setSidebar(sidebarOpen);
+
+// --- Chat list (sidebar) ---
+
+function formatRelativeTime(isoString) {
+  if (!isoString) return '';
+  const date = new Date(isoString + (isoString.endsWith('Z') ? '' : 'Z'));
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+async function loadChatList() {
+  const chatListEl = document.getElementById('chat-list');
+  try {
+    const res = await fetch('/api/chats');
+    const data = await res.json();
+    const chats = data.chats || [];
+
+    chatListEl.innerHTML = '';
+
+    if (chats.length === 0) {
+      chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No previous chats</p>';
+      return;
+    }
+
+    for (const chat of chats) {
+      const btn = document.createElement('button');
+      btn.className = 'chat-list-item w-full text-left px-3 py-2.5 mx-1 rounded-lg transition-colors text-gray-400 hover:bg-gray-800 hover:text-gray-200';
+
+      const name = document.createElement('div');
+      name.className = 'truncate text-sm font-medium';
+      name.textContent = chat.name || 'New chat';
+
+      const time = document.createElement('div');
+      time.className = 'text-xs mt-0.5 opacity-50 truncate';
+      time.textContent = formatRelativeTime(chat.last_active);
+
+      btn.appendChild(name);
+      btn.appendChild(time);
+      btn.addEventListener('click', () => {
+        localStorage.setItem('active_session_id', chat.id);
+        window.location.href = '/chat';
+      });
+
+      chatListEl.appendChild(btn);
+    }
+  } catch {
+    chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">Failed to load chats</p>';
+  }
+}
+
 // --- Time period ---
 
 function getPeriod() {
@@ -215,7 +307,6 @@ function renderBriefing(data) {
   container.innerHTML = '';
 
   const hasWeather = data.weather;
-  const hasEvents = data.events && data.events.length >= 0; // show even when empty
   const hasNews = data.news && data.news.length > 0;
   const hasReminders = data.reminders && data.reminders.length > 0;
 
@@ -237,8 +328,8 @@ function renderBriefing(data) {
     container.appendChild(summaryCard);
   }
 
-  // Top row: weather + calendar side by side (if both present), or full-width if only one
-  if (hasWeather && hasEvents) {
+  // Top row: weather + calendar side by side
+  if (hasWeather && data.events !== undefined) {
     const row = document.createElement('div');
     row.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
     row.appendChild(buildWeatherTile(data.weather));
@@ -246,19 +337,12 @@ function renderBriefing(data) {
     container.appendChild(row);
   } else if (hasWeather) {
     container.appendChild(buildWeatherTile(data.weather));
-  } else if (hasEvents) {
+  } else if (data.events !== undefined) {
     container.appendChild(buildCalendarTile(data.events));
   }
 
-  // News
-  if (hasNews) {
-    container.appendChild(buildNewsSection(data.news));
-  }
-
-  // Reminders
-  if (hasReminders) {
-    container.appendChild(buildRemindersTile(data.reminders));
-  }
+  if (hasNews) container.appendChild(buildNewsSection(data.news));
+  if (hasReminders) container.appendChild(buildRemindersTile(data.reminders));
 
   // Timestamp
   if (data.generated_at) {
@@ -282,12 +366,10 @@ async function loadBriefing(force = false) {
   const period = getPeriod();
   document.getElementById('briefing-label').textContent = PERIOD_LABELS[period];
 
-  // Show loading state
   document.getElementById('briefing-tiles').classList.add('hidden');
   document.getElementById('briefing-error').classList.add('hidden');
   document.getElementById('briefing-loading').classList.remove('hidden');
 
-  // Spin the refresh icon
   const icon = document.getElementById('refresh-icon');
   icon.classList.add('spin');
 
@@ -314,87 +396,8 @@ async function loadBriefing(force = false) {
 
 document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));
 
-// --- Chat list ---
-
-function formatRelativeTime(isoString) {
-  if (!isoString) return '';
-  const date = new Date(isoString + (isoString.endsWith('Z') ? '' : 'Z'));
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return 'yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-}
-
-async function loadChats() {
-  const listEl = document.getElementById('chat-list');
-  const noChatsEl = document.getElementById('no-chats');
-  const loadingEl = document.getElementById('chats-loading');
-
-  try {
-    const res = await fetch('/api/chats');
-    const data = await res.json();
-    const chats = (data.chats || []).slice(0, 8);
-
-    loadingEl.classList.add('hidden');
-
-    if (chats.length === 0) {
-      noChatsEl.classList.remove('hidden');
-      return;
-    }
-
-    for (const chat of chats) {
-      const item = document.createElement('a');
-      item.href = '#';
-      item.className = 'flex items-center justify-between px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 hover:bg-gray-800/60 transition-all group cursor-pointer';
-      item.addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.setItem('active_session_id', chat.id);
-        window.location.href = '/chat';
-      });
-
-      const left = document.createElement('div');
-      left.className = 'min-w-0 flex-1';
-
-      const name = document.createElement('div');
-      name.className = 'text-sm text-gray-200 font-medium truncate group-hover:text-white transition-colors';
-      name.textContent = chat.name || 'Untitled chat';
-
-      const time = document.createElement('div');
-      time.className = 'text-xs text-gray-600 mt-0.5';
-      time.textContent = formatRelativeTime(chat.last_active);
-
-      left.appendChild(name);
-      left.appendChild(time);
-
-      const arrow = document.createElement('span');
-      arrow.className = 'text-gray-700 group-hover:text-gray-400 transition-colors ml-4 flex-shrink-0 text-sm';
-      arrow.textContent = '→';
-
-      item.appendChild(left);
-      item.appendChild(arrow);
-      listEl.appendChild(item);
-    }
-  } catch {
-    loadingEl.classList.add('hidden');
-    listEl.innerHTML = '<p class="text-gray-600 text-sm">Could not load recent chats.</p>';
-  }
-}
-
-// --- New chat link ---
-
-document.getElementById('new-chat-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  localStorage.setItem('active_session_id', crypto.randomUUID());
-  window.location.href = '/chat';
-});
+// --- Init ---
 
 setGreeting();
 loadBriefing();
-loadChats();
+loadChatList();

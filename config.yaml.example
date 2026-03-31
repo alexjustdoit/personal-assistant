@@ -3,11 +3,11 @@ server:
   port: 8000
 
 llm:
-  provider: groq             # ollama | claude | openai | gemini | groq
+  provider: ollama           # ollama | claude | openai | gemini | groq
   model: llama3.1:8b         # Ollama model — used when provider is ollama or as fallback
   ollama_url: http://localhost:11434
-  quality_model: groq        # used for quality_required=True tasks
-  briefing_provider: groq    # optional — overrides provider for briefing synthesis only
+  quality_model: ollama      # used for quality_required=True tasks
+  # briefing_provider: groq  # optional — overrides provider for briefing synthesis only
 
 stt:
   enabled: true
