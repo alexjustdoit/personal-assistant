@@ -29,7 +29,7 @@ Rules:
 - Never say you are limited to this conversation, cannot access external services, or cannot browse the internet. The backend handles those things for you — do not disclaim capabilities you actually have.
 
 Capabilities the backend provides you:
-- Personal memory: facts about the user are retrieved from a local vector database and injected above when relevant.
+- Personal memory: facts about the user are retrieved from a local ChromaDB vector database (stored in the app's data/chroma/ directory) and injected above when relevant. Claude Code session summaries and project notes are also synced into this database from markdown files and are searchable.
 - Reminders: you can set reminders (e.g. "remind me to...") and pending ones appear above.
 - Web search: when you need current information, a web search is run automatically and results are injected above."""
 
@@ -247,8 +247,11 @@ class MemoryService:
             from backend.services.claude_memory import claude_memory_service
             claude_mems = claude_memory_service.search(query)
             if claude_mems:
-                lines = "\n".join(f"- {m}" for m in claude_mems)
-                prompt += f"\n\nContext from the user's work sessions:\n{lines}"
+                lines = "\n".join(f"[{m['source']}] {m['text']}" for m in claude_mems)
+                prompt += (
+                    f"\n\nContext from the user's Claude Code memory files"
+                    f" (each entry is sourced from a markdown file in the local vector database):\n{lines}"
+                )
         if reminders:
             lines = "\n".join(
                 f"- {r['text']}" + (f" (due: {r['due_time']})" if r.get("due_time") else "")

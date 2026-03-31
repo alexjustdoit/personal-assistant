@@ -91,14 +91,17 @@ class ClaudeMemoryService:
         except Exception as e:
             print(f"[ClaudeMemory] Error removing {path.stem}: {e}")
 
-    def search(self, query: str, n: int = 3) -> list[str]:
+    def search(self, query: str, n: int = 3) -> list[dict]:
+        """Returns list of {source, text} dicts ordered by relevance."""
         try:
             col = self._get_collection()
             count = col.count()
             if count == 0:
                 return []
             results = col.query(query_texts=[query], n_results=min(n, count))
-            return results["documents"][0] if results["documents"] else []
+            docs = results["documents"][0] if results["documents"] else []
+            ids = results["ids"][0] if results["ids"] else []
+            return [{"source": sid, "text": doc} for sid, doc in zip(ids, docs)]
         except Exception:
             return []
 
