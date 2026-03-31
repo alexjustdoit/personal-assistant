@@ -134,8 +134,8 @@
             <div class="space-y-3">
               <div class="flex items-center justify-between">
                 <div>
-                  <div class="text-sm text-gray-300">Enable daily briefing</div>
-                  <div class="text-xs text-gray-600">Delivered to your home page each morning</div>
+                  <div class="text-sm text-gray-300">Enable morning briefing</div>
+                  <div class="text-xs text-gray-600">Weather, news, and calendar — delivered each morning</div>
                 </div>
                 <label class="toggle-switch">
                   <input type="checkbox" id="briefing-enabled" checked />
@@ -230,6 +230,27 @@
             </div>
           </div>
 
+          <!-- Evening briefing -->
+          <div class="border-t border-gray-800 pt-4">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Evening briefing</p>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-300">Enable evening briefing</div>
+                  <div class="text-xs text-gray-600">End-of-day recap sent via ntfy (~6–7 PM)</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="evening-enabled" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group" id="evening-fields" style="opacity:0.4;pointer-events:none">
+                <label class="form-label">Time (24h)</label>
+                <input id="evening-time" type="time" value="18:00" class="form-input" />
+              </div>
+            </div>
+          </div>
+
           <!-- Weather -->
           <div class="border-t border-gray-800 pt-4">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Weather</p>
@@ -273,11 +294,18 @@
           <!-- Calendar -->
           <div class="border-t border-gray-800 pt-4">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Calendar</p>
-            <div class="form-group">
-              <label class="form-label">Private iCal URL</label>
-              <input id="calendar-url" type="text" class="form-input font-mono text-xs" placeholder="webcal://… (leave blank to skip)" spellcheck="false" />
-              <p class="form-hint">Google / Outlook / Apple Calendar → Share → "Private address in iCal format"</p>
+            <div class="space-y-2" id="calendar-url-list">
+              <div class="form-group">
+                <label class="form-label">Calendar 1</label>
+                <input type="text" class="form-input font-mono text-xs calendar-url-input" placeholder="webcal://… (leave blank to skip)" spellcheck="false" />
+              </div>
+              <div class="form-group" id="calendar-url-2" style="display:none">
+                <label class="form-label">Calendar 2</label>
+                <input type="text" class="form-input font-mono text-xs calendar-url-input" placeholder="webcal://…" spellcheck="false" />
+              </div>
             </div>
+            <button type="button" id="add-calendar-btn" class="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">+ Add second calendar</button>
+            <p class="form-hint mt-1">Google / Outlook / Apple Calendar → Share → "Private address in iCal format"</p>
           </div>
 
           <!-- Notifications -->

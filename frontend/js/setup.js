@@ -110,13 +110,28 @@ document.getElementById('briefing-enabled').addEventListener('change', (e) => {
   document.getElementById('briefing-fields').style.pointerEvents = e.target.checked ? '' : 'none';
 });
 
+document.getElementById('evening-enabled').addEventListener('change', (e) => {
+  document.getElementById('evening-fields').style.opacity = e.target.checked ? '1' : '0.4';
+  document.getElementById('evening-fields').style.pointerEvents = e.target.checked ? '' : 'none';
+});
+
+// --- Second calendar URL ---
+
+document.getElementById('add-calendar-btn').addEventListener('click', () => {
+  const row2 = document.getElementById('calendar-url-2');
+  row2.style.display = '';
+  document.getElementById('add-calendar-btn').style.display = 'none';
+});
+
 // --- Build config object ---
 
 function buildConfig() {
   const topicsRaw = document.getElementById('news-topics').value;
   const topics = topicsRaw.split(',').map(t => t.trim()).filter(Boolean);
 
-  const calUrl = document.getElementById('calendar-url').value.trim();
+  const calUrls = Array.from(document.querySelectorAll('.calendar-url-input'))
+    .map(el => el.value.trim())
+    .filter(Boolean);
   const weatherKey = document.getElementById('weather-key').value.trim();
   const newsKey = document.getElementById('news-key').value.trim();
   const ntfyTopic = document.getElementById('ntfy-topic').value.trim();
@@ -157,6 +172,8 @@ function buildConfig() {
       enabled: document.getElementById('briefing-enabled').checked,
       time: document.getElementById('briefing-time').value || '07:00',
       timezone: document.getElementById('briefing-tz').value.trim() || 'America/New_York',
+      evening_enabled: document.getElementById('evening-enabled').checked,
+      evening_time: document.getElementById('evening-time').value || '18:00',
     },
     weather: {
       enabled: !!weatherKey,
@@ -165,8 +182,8 @@ function buildConfig() {
       units: document.getElementById('weather-units').value,
     },
     calendar: {
-      enabled: !!calUrl,
-      ical_url: calUrl,
+      enabled: calUrls.length > 0,
+      ical_urls: calUrls,
     },
     news: {
       enabled: !!newsKey,

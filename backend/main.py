@@ -52,6 +52,11 @@ async def serve_setup():
     return FileResponse(frontend_path / "setup.html")
 
 
+@app.get("/sw.js")
+async def serve_sw():
+    return FileResponse(frontend_path / "sw.js", media_type="application/javascript")
+
+
 @app.get("/chat")
 async def serve_chat():
     if not is_configured():

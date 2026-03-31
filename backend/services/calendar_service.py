@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from datetime import date, datetime, time, timedelta
 from backend.config import config
@@ -7,7 +8,19 @@ class CalendarService:
     def __init__(self):
         cfg = config.get("calendar", {})
         self.enabled = cfg.get("enabled", False)
-        self.ical_url = cfg.get("ical_url", "")
+        # Support ical_urls list (new) and ical_url singular (backward compat)
+        urls = cfg.get("ical_urls") or []
+        if not urls and cfg.get("ical_url"):
+            urls = [cfg["ical_url"]]
+        self.ical_urls: list[str] = [u for u in urls if u]
+
+    async def _fetch_ical(self, client: httpx.AsyncClient, url: str) -> str | None:
+        try:
+            res = await client.get(url, timeout=10)
+            res.raise_for_status()
+            return res.text
+        except Exception:
+            return None
 
     async def get_events(self) -> list[dict]:
         """
@@ -15,19 +28,28 @@ class CalendarService:
         - Today: events whose end time is within the past hour or later
         - Tomorrow until noon: only shown after 6 PM today
         Each event includes status: past | current | upcoming | tomorrow
+        Multiple iCal URLs are fetched in parallel and merged.
         """
-        if not self.enabled or not self.ical_url:
+        if not self.enabled or not self.ical_urls:
             return []
-
-        async with httpx.AsyncClient() as client:
-            res = await client.get(self.ical_url, timeout=10)
-            res.raise_for_status()
-            ical_data = res.text
 
         import recurring_ical_events
         from icalendar import Calendar
 
-        cal = Calendar.from_ical(ical_data)
+        async with httpx.AsyncClient() as client:
+            fetched = await asyncio.gather(*[self._fetch_ical(client, u) for u in self.ical_urls])
+
+        # Parse all calendars
+        calendars = []
+        for ical_data in fetched:
+            if ical_data:
+                try:
+                    calendars.append(Calendar.from_ical(ical_data))
+                except Exception:
+                    pass
+
+        if not calendars:
+            return []
 
         now = datetime.now()
         today = now.date()
@@ -38,9 +60,10 @@ class CalendarService:
 
         dates_to_fetch = [today] + ([tomorrow] if show_tomorrow else [])
         raw_events = []
-        for fetch_date in dates_to_fetch:
-            for event in recurring_ical_events.of(cal).at(fetch_date):
-                raw_events.append((fetch_date, event))
+        for cal in calendars:
+            for fetch_date in dates_to_fetch:
+                for event in recurring_ical_events.of(cal).at(fetch_date):
+                    raw_events.append((fetch_date, event))
 
         result = []
         for fetch_date, event in raw_events:
@@ -84,6 +107,16 @@ class CalendarService:
                 "is_allday": is_allday,
                 "_sort": start_dt,
             })
+
+        # Deduplicate by (title, start) in case same event appears in multiple calendars
+        seen = set()
+        deduped = []
+        for e in result:
+            key = (e["title"], e["start"])
+            if key not in seen:
+                seen.add(key)
+                deduped.append(e)
+        result = deduped
 
         result.sort(key=lambda e: e["_sort"])
         for e in result:

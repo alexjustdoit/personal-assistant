@@ -11,9 +11,6 @@ All notable changes to this project are documented here.
 - **Web search in chat** — Tavily already integrated for news; expose it as a callable tool in chat so the LLM can search the web on demand for grounded, current answers
 - **Persistent memory** — ChromaDB already installed; store facts about the user across sessions and inject relevant context automatically into each conversation
 - **Todoist integration** — Connect to Todoist API for task/todo management; chat commands ("add X to my list", "what's due today") and a home page tile
-- **Second calendar source** — Support multiple iCal URLs in config; merge and deduplicate events across sources (e.g. work + personal)
-- **PWA / home screen install** — Add web app manifest and service worker so the app can be installed on phone/desktop home screen with full-screen experience
-- **End-of-day briefing** — Second scheduled briefing (~6–7 PM); recap of the day, preview of tomorrow, outstanding reminders
 - **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
 - **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
@@ -44,6 +41,34 @@ Allow the assistant to update certain config values (e.g. news topics) through c
 ### Portfolio / showcase
 - `DEMO.md` with screenshots and feature walkthrough
 - Demo video or GIF showing voice input, morning briefing, and smart home control
+
+---
+
+## [0.3] — 2026-03-30
+
+### Added — PWA / home screen install
+- `manifest.json` with app name, theme color, and SVG icon
+- `icon.svg` — custom house icon with indigo palette
+- `sw.js` — minimal service worker (pass-through, no offline caching) enabling the install prompt
+- `/sw.js` route in FastAPI serving the service worker at the correct scope
+- PWA meta tags added to home.html and chat.html: manifest link, theme-color, apple-mobile-web-app tags
+- Service worker registered on page load — browser will show "Add to Home Screen" / install prompt
+
+### Added — Second calendar source
+- `calendar_service.py` now reads `ical_urls` list from config (supports any number of sources)
+- Backward compatible with legacy `ical_url` single-string config
+- All URLs fetched in parallel via `asyncio.gather`
+- Events merged and deduplicated by (title, start time) before sorting
+- Setup wizard updated: "Calendar 1 / Calendar 2" fields with "+ Add second calendar" toggle
+- `config.yaml.example` updated to `ical_urls: []` list format
+
+### Added — Evening briefing
+- `generate_and_send_briefing(period="morning")` now accepts a `period` parameter
+- Evening briefing sends warm, reflective tone via `PERIOD_SYSTEM["evening"]`
+- Saves to SQLite briefing cache — home page shows whichever briefing is most recent
+- New `_run_evening_briefing` scheduler job reads `briefing.evening_enabled` + `briefing.evening_time`
+- Setup wizard: "Evening briefing" toggle + time picker in Integrations step
+- `config.yaml.example` updated with `evening_enabled: false` and `evening_time: "18:00"`
 
 ---
 

@@ -19,9 +19,20 @@ class SchedulerService:
             time_str = cfg.get("time", "07:00")
             hour, minute = map(int, time_str.split(":"))
             self._scheduler.add_job(
-                self._run_briefing,
+                self._run_morning_briefing,
                 CronTrigger(hour=hour, minute=minute, timezone=tz),
                 id="morning_briefing",
+                replace_existing=True,
+            )
+
+        # Evening briefing
+        if cfg.get("evening_enabled", False):
+            time_str = cfg.get("evening_time", "18:00")
+            hour, minute = map(int, time_str.split(":"))
+            self._scheduler.add_job(
+                self._run_evening_briefing,
+                CronTrigger(hour=hour, minute=minute, timezone=tz),
+                id="evening_briefing",
                 replace_existing=True,
             )
 
@@ -38,12 +49,19 @@ class SchedulerService:
     def stop(self):
         self._scheduler.shutdown(wait=False)
 
-    async def _run_briefing(self):
+    async def _run_morning_briefing(self):
         from backend.services.briefing import generate_and_send_briefing
         try:
-            await generate_and_send_briefing()
+            await generate_and_send_briefing(period="morning")
         except Exception as e:
-            print(f"[Briefing] Error: {e}")
+            print(f"[Briefing] Morning error: {e}")
+
+    async def _run_evening_briefing(self):
+        from backend.services.briefing import generate_and_send_briefing
+        try:
+            await generate_and_send_briefing(period="evening")
+        except Exception as e:
+            print(f"[Briefing] Evening error: {e}")
 
     async def _check_reminders(self):
         from backend.services.memory import memory_service

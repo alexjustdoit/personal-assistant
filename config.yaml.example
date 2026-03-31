@@ -22,8 +22,10 @@ tts:
 
 briefing:
   enabled: true
-  time: "07:00"          # 24hr format
+  time: "07:00"          # 24hr format, morning briefing
   timezone: "America/New_York"  # IANA timezone name
+  evening_enabled: false
+  evening_time: "18:00"  # 24hr format, end-of-day briefing
 
 weather:
   enabled: true
@@ -33,7 +35,8 @@ weather:
 
 calendar:
   enabled: false
-  ical_url: ""           # Private iCal URL from Google/Outlook/Apple Calendar
+  ical_urls: []          # List of private iCal URLs (Google/Outlook/Apple Calendar)
+  # ical_url: ""         # Legacy single-URL format still supported
 
 news:
   enabled: true

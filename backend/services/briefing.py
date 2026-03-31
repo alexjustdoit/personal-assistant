@@ -191,9 +191,17 @@ async def generate_on_demand_briefing(period: str, force: bool = False, provider
     return data
 
 
-async def generate_and_send_briefing():
-    """Scheduled morning briefing: generates structured data, narrates via LLM, sends ntfy."""
-    data = await collect_briefing_data("morning")
+PERIOD_TITLE = {
+    "morning": "Good morning!",
+    "afternoon": "Afternoon check-in",
+    "evening": "Evening briefing",
+    "night": "Late-night overview",
+}
+
+
+async def generate_and_send_briefing(period: str = "morning"):
+    """Scheduled briefing: generates structured data, narrates via LLM, sends ntfy."""
+    data = await collect_briefing_data(period)
 
     topics = config.get("news", {}).get("topics", [])
     data["news"] = await _synthesize_rss_news(topics) if topics else []
@@ -232,15 +240,15 @@ async def generate_and_send_briefing():
     data_block = "\n\n".join(sections)
     today = datetime.utcnow().strftime("%A, %B %d, %Y").replace(" 0", " ")
     prompt = (
-        f"Today is {today}. {PERIOD_INSTRUCTION['morning']} "
+        f"Today is {today}. {PERIOD_INSTRUCTION[period]} "
         "Write a concise, conversational paragraph — not a list.\n\n"
-        f"Data:\n{data_block}\n\nWrite the morning briefing:"
+        f"Data:\n{data_block}\n\nWrite the briefing:"
     )
 
     briefing_text = await llm_router.complete_briefing([
-        {"role": "system", "content": PERIOD_SYSTEM["morning"]},
+        {"role": "system", "content": PERIOD_SYSTEM[period]},
         {"role": "user", "content": prompt},
     ])
 
     memory_service.save_briefing(json.dumps(data))
-    await notification_service.send(title="Good morning!", body=briefing_text)
+    await notification_service.send(title=PERIOD_TITLE[period], body=briefing_text)
