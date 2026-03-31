@@ -129,12 +129,11 @@ async def _synthesize_rss_news(topics: list[str]) -> list[dict]:
 
     today = datetime.utcnow().strftime("%A, %B %d, %Y").replace(" 0", " ")  # e.g. "Monday, March 30, 2026"
 
-    # Parallel LLM calls — one per topic
-    synthesis_tasks = [
-        _synthesize_topic(topic, articles, today)
-        for topic, articles in by_topic.items()
-    ]
-    summaries = await asyncio.gather(*synthesis_tasks)
+    # Sequential LLM calls — avoids per-minute rate limits on free tier APIs
+    summaries = []
+    for topic, articles in by_topic.items():
+        summary = await _synthesize_topic(topic, articles, today)
+        summaries.append(summary)
 
     result = []
     for (topic, articles), summary in zip(by_topic.items(), summaries):
