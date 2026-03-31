@@ -69,6 +69,37 @@ class LLMRouter:
             async for token in self._stream_ollama(messages):
                 yield token
 
+    def best_vision_provider(self, preferred: str | None = None) -> str | None:
+        """Return the best available vision-capable provider, or None if none configured."""
+        if preferred in ("claude", "gemini"):
+            if preferred == "claude" and self.anthropic_key:
+                return "claude"
+            if preferred == "gemini" and self.gemini_key:
+                return "gemini"
+        if self.anthropic_key:
+            return "claude"
+        if self.gemini_key:
+            return "gemini"
+        return None
+
+    async def stream_vision(
+        self,
+        messages: list[dict],
+        image_b64: str,
+        media_type: str,
+        provider: str | None = None,
+    ):
+        """Stream a response that includes an image. Routes to a vision-capable provider."""
+        vision_provider = provider or self.best_vision_provider()
+        if vision_provider == "claude":
+            async for token in self._stream_claude_vision(messages, image_b64, media_type):
+                yield token
+        elif vision_provider == "gemini":
+            async for token in self._stream_gemini_vision(messages, image_b64, media_type):
+                yield token
+        else:
+            yield "No vision-capable provider is configured. Please add a Claude or Gemini API key."
+
     async def complete(self, messages: list[dict], provider: str | None = None) -> str:
         """Non-streaming completion. Uses briefing_provider by default; pass provider to override."""
         result = ""
@@ -153,6 +184,69 @@ class LLMRouter:
         stream = await client.chat.completions.create(
             model=GROQ_MODEL,
             messages=messages,
+            stream=True,
+        )
+        async for chunk in stream:
+            token = chunk.choices[0].delta.content
+            if token:
+                yield token
+
+    async def _stream_claude_vision(
+        self, messages: list[dict], image_b64: str, media_type: str
+    ) -> AsyncGenerator[str, None]:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
+        system = None
+        filtered = []
+        for m in messages:
+            if m["role"] == "system":
+                system = m["content"]
+            else:
+                filtered.append({"role": m["role"], "content": m["content"]})
+
+        # Inject image into the last user message
+        if filtered and filtered[-1]["role"] == "user":
+            text = filtered[-1]["content"]
+            filtered[-1] = {
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
+                    {"type": "text", "text": text or "What's in this image?"},
+                ],
+            }
+
+        async with client.messages.stream(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            system=system or "",
+            messages=filtered,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+
+    async def _stream_gemini_vision(
+        self, messages: list[dict], image_b64: str, media_type: str
+    ) -> AsyncGenerator[str, None]:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=self.gemini_key, base_url=GEMINI_BASE_URL)
+
+        messages_copy = [{"role": m["role"], "content": m["content"]} for m in messages]
+        # Inject image into the last user message
+        for i in range(len(messages_copy) - 1, -1, -1):
+            if messages_copy[i]["role"] == "user":
+                text = messages_copy[i]["content"]
+                messages_copy[i] = {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
+                        {"type": "text", "text": text or "What's in this image?"},
+                    ],
+                }
+                break
+
+        stream = await client.chat.completions.create(
+            model=GEMINI_MODEL,
+            messages=messages_copy,
             stream=True,
         )
         async for chunk in stream:

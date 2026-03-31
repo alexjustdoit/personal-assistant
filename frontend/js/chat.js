@@ -41,6 +41,11 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const newChatBtn = document.getElementById('new-chat-btn');
+const imageBtn = document.getElementById('image-btn');
+const imageInput = document.getElementById('image-input');
+const imagePreviewArea = document.getElementById('image-preview-area');
+const imagePreviewEl = document.getElementById('image-preview');
+const imageRemoveBtn = document.getElementById('image-remove');
 
 // --- Sidebar ---
 
@@ -254,18 +259,103 @@ function setInputEnabled(enabled) {
   if (enabled) inputEl.focus();
 }
 
+// --- Image handling ---
+
+let currentImageData = null;
+
+async function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1024;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+function setAttachedImage(dataUrl) {
+  currentImageData = dataUrl;
+  imagePreviewEl.src = dataUrl;
+  imagePreviewArea.classList.remove('hidden');
+}
+
+function clearAttachedImage() {
+  currentImageData = null;
+  imagePreviewEl.src = '';
+  imagePreviewArea.classList.add('hidden');
+  imageInput.value = '';
+}
+
+function loadImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  compressImage(file).then(dataUrl => { if (dataUrl) setAttachedImage(dataUrl); });
+}
+
+imageBtn.addEventListener('click', () => imageInput.click());
+imageInput.addEventListener('change', (e) => { if (e.target.files[0]) loadImageFile(e.target.files[0]); });
+imageRemoveBtn.addEventListener('click', clearAttachedImage);
+
+// Paste to attach image
+document.addEventListener('paste', (e) => {
+  if (isStreaming) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      loadImageFile(item.getAsFile());
+      break;
+    }
+  }
+});
+
+function appendImageMessage(dataUrl) {
+  showMessages();
+  const wrapper = document.createElement('div');
+  wrapper.className = 'flex justify-end';
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.className = 'max-w-xs max-h-48 rounded-xl border border-gray-700 object-cover';
+  img.alt = 'Attached image';
+  wrapper.appendChild(img);
+  messagesEl.appendChild(wrapper);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
 function sendMessage() {
   const content = inputEl.value.trim();
-  if (!content || isStreaming || !socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!content && !currentImageData) return;
+  if (isStreaming || !socket || socket.readyState !== WebSocket.OPEN) return;
 
-  appendMessage('user', content);
+  if (currentImageData) appendImageMessage(currentImageData);
+  if (content) appendMessage('user', content);
+
   inputEl.value = '';
+  const imageToSend = currentImageData;
+  clearAttachedImage();
   isStreaming = true;
   resetTTS();
   setInputEnabled(false);
   startAssistantBubble();
 
-  socket.send(JSON.stringify({ type: 'message', content, provider: providerSelect.value }));
+  socket.send(JSON.stringify({
+    type: 'message',
+    content,
+    provider: providerSelect.value,
+    ...(imageToSend && { image: imageToSend }),
+  }));
 }
 
 sendBtn.addEventListener('click', sendMessage);

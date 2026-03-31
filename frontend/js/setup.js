@@ -132,6 +132,7 @@ function buildConfig() {
   const calUrls = Array.from(document.querySelectorAll('.calendar-url-input'))
     .map(el => el.value.trim())
     .filter(Boolean);
+  const todoistToken = document.getElementById('todoist-token').value.trim();
   const weatherKey = document.getElementById('weather-key').value.trim();
   const newsKey = document.getElementById('news-key').value.trim();
   const ntfyTopic = document.getElementById('ntfy-topic').value.trim();
@@ -194,6 +195,7 @@ function buildConfig() {
       ntfy_url: 'https://ntfy.sh',
       ntfy_topic: ntfyTopic,
     },
+    todoist: { api_token: todoistToken },
     anthropic_api_key: anthropicKey,
     openai_api_key: openaiKey,
     openai_model: 'gpt-5.4-nano',

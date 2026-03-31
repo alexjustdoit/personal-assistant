@@ -8,7 +8,7 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Todoist integration** — Connect to Todoist API for task/todo management; chat commands ("add X to my list", "what's due today") and a home page tile
+- **Govee lights / smart home control** — Voice and chat control of Govee devices via Govee Developer API
 - **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
 - **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
@@ -39,6 +39,26 @@ Allow the assistant to update certain config values (e.g. news topics) through c
 ### Portfolio / showcase
 - `DEMO.md` with screenshots and feature walkthrough
 - Demo video or GIF showing voice input, morning briefing, and smart home control
+
+---
+
+## [0.5] — 2026-03-31
+
+### Added — Todoist integration
+- `backend/services/todoist.py` — Todoist REST API v2 client: `get_tasks`, `add_task`, `complete_task`, `find_task_by_name`
+- `GET /api/todoist/tasks` — returns today + overdue tasks for the home page tile
+- Home page tasks tile: shows today/overdue tasks with due dates; refresh button; only appears when Todoist is configured
+- Chat integration: LLM detects "add X to my list", "what's on my list", "I finished X" intents in parallel with web search detection; executes via Todoist API and injects confirmation/results into system prompt
+- Setup wizard: Todoist API token field under Integrations
+- `config.yaml.example`: `todoist.api_token` field added
+
+### Added — Image understanding in chat
+- Paste an image (Ctrl+V) or click the image button to attach a photo or screenshot
+- Images are compressed to max 1024px via canvas before encoding — keeps WS payload small
+- Image preview shown above input with remove button
+- Routed to Claude (Haiku) or Gemini 2.0 Flash depending on which API keys are configured; Claude preferred
+- Backend: `stream_vision()` method on LLMRouter; `_stream_claude_vision()` and `_stream_gemini_vision()` inject image into last user message in the appropriate format
+- Shows descriptive error if no vision-capable provider is configured
 
 ---
 

@@ -272,6 +272,99 @@ function buildCalendarTile(events) {
   return tile;
 }
 
+// --- Tasks tile (Todoist) ---
+
+function buildTasksTile(tasks) {
+  const tile = document.createElement('div');
+  tile.id = 'tasks-tile';
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
+
+  const header = document.createElement('div');
+  header.className = 'flex items-center justify-between mb-3';
+
+  const label = document.createElement('div');
+  label.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider';
+  label.textContent = 'Tasks';
+
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'text-gray-600 hover:text-gray-400 transition-colors p-0.5 rounded';
+  refreshBtn.title = 'Refresh tasks';
+  refreshBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+  refreshBtn.addEventListener('click', loadTasksTile);
+
+  header.appendChild(label);
+  header.appendChild(refreshBtn);
+  tile.appendChild(header);
+
+  if (tasks.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'text-sm text-gray-600 py-1';
+    empty.textContent = 'No tasks due today';
+    tile.appendChild(empty);
+    return tile;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'space-y-2';
+
+  for (const task of tasks) {
+    const row = document.createElement('div');
+    row.className = 'flex items-start gap-2.5';
+
+    const dot = document.createElement('span');
+    dot.className = 'text-indigo-500 text-xs mt-1 flex-shrink-0';
+    dot.textContent = '●';
+
+    const text = document.createElement('span');
+    text.className = 'text-sm text-gray-200 leading-snug';
+    text.textContent = task.content;
+
+    row.appendChild(dot);
+    row.appendChild(text);
+
+    if (task.due) {
+      const due = document.createElement('span');
+      due.className = 'text-xs text-gray-600 ml-auto flex-shrink-0 mt-0.5';
+      due.textContent = task.due.string || '';
+      row.appendChild(due);
+    }
+
+    list.appendChild(row);
+  }
+
+  tile.appendChild(list);
+  return tile;
+}
+
+async function loadTasksTile() {
+  try {
+    const res = await fetch('/api/todoist/tasks');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.enabled) return;
+
+    const tilesEl = document.getElementById('briefing-tiles');
+    if (!tilesEl || tilesEl.classList.contains('hidden')) return;
+
+    const existing = document.getElementById('tasks-tile');
+    const newTile = buildTasksTile(data.tasks);
+
+    if (existing) {
+      existing.parentNode.replaceChild(newTile, existing);
+    } else {
+      // Insert before reminders tile if present, otherwise append
+      const reminders = tilesEl.querySelector('.reminders-tile');
+      if (reminders) {
+        tilesEl.insertBefore(newTile, reminders);
+      } else {
+        tilesEl.appendChild(newTile);
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
 // --- Reminders tile ---
 
 function buildRemindersTile(reminders) {
@@ -456,8 +549,9 @@ async function loadBriefing(force = false) {
 
   icon.classList.remove('spin');
   renderBriefing(data);
-  // Always refresh calendar from live endpoint after render — briefing may be cached
+  // Always refresh calendar and tasks from live endpoints after render — briefing may be cached
   refreshCalendarTile();
+  loadTasksTile();
 }
 
 document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));

@@ -142,6 +142,15 @@ async def get_calendar_events():
     return {"events": events}
 
 
+@app.get("/api/todoist/tasks")
+async def get_todoist_tasks():
+    from backend.services.todoist import get_tasks, todoist_enabled
+    if not todoist_enabled():
+        return {"enabled": False, "tasks": []}
+    tasks = await get_tasks("today | overdue")
+    return {"enabled": True, "tasks": tasks}
+
+
 @app.get("/api/providers")
 async def get_providers():
     from backend.services.llm import llm_router
