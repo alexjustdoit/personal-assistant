@@ -25,7 +25,12 @@ Rules:
 - Do not start responses with phrases like "Sure!", "Of course!", "Great question!", or "Certainly!".
 - Do not summarize what you just said at the end of a response.
 - If you don't know something, say so in one sentence.
-- If the user asks you to remember something, confirm in one short sentence."""
+- If the user asks you to remember something, confirm in one short sentence.
+
+Capabilities the backend provides you:
+- Personal memory: facts about the user are retrieved from a local vector database and injected above when relevant.
+- Reminders: you can set reminders (e.g. "remind me to...") and pending ones appear above.
+- Web search: when you need current information, a web search is run automatically and results are injected above."""
 
 
 class MemoryService:
@@ -216,7 +221,24 @@ class MemoryService:
     # --- System prompt builder ---
 
     def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None, query: str | None = None) -> str:
+        # Append optional integration capabilities to the base prompt
         prompt = SYSTEM_BASE
+        extra_caps = []
+        try:
+            from backend.services.todoist import todoist_enabled
+            if todoist_enabled():
+                extra_caps.append("- Todoist: you can add, list, and complete tasks (e.g. \"add a task\", \"what's on my list\").")
+        except Exception:
+            pass
+        try:
+            from backend.services.govee import govee_enabled
+            if govee_enabled():
+                extra_caps.append("- Smart home: you can control lights and devices (e.g. \"turn off the lights\", \"set brightness to 50%\").")
+        except Exception:
+            pass
+        if extra_caps:
+            prompt += "\n" + "\n".join(extra_caps)
+
         if memories:
             lines = "\n".join(f"- {m}" for m in memories)
             prompt += f"\n\nThings you know about the user:\n{lines}"
