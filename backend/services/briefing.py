@@ -90,9 +90,12 @@ async def generate_on_demand_briefing(period: str) -> dict:
     cached = memory_service.get_recent_briefing(max_age_hours=6)
     if cached:
         try:
-            return json.loads(cached["content"])
+            parsed = json.loads(cached["content"])
+            if "events" in parsed and "period" in parsed:
+                return parsed
+            # old format (missing structured fields) — fall through and regenerate
         except (json.JSONDecodeError, TypeError):
-            pass  # stale text-format briefing — regenerate
+            pass  # plain text briefing — regenerate
 
     data = await collect_briefing_data(period)
     data["summary"] = await _generate_summary(data, period)
