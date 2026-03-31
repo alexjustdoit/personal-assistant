@@ -29,7 +29,8 @@ Rules:
 - Never say you are limited to this conversation, cannot access external services, or cannot browse the internet. The backend handles those things for you — do not disclaim capabilities you actually have.
 
 Capabilities the backend provides you:
-- Personal memory: facts about the user are retrieved from a local ChromaDB vector database (stored in the app's data/chroma/ directory) and injected above when relevant. Claude Code session summaries and project notes are also synced into this database from markdown files and are searchable.
+- Personal memory: facts about the user are retrieved from a local ChromaDB vector database and injected above when relevant.
+- Personal notes: markdown and text files from configured local and iCloud folders are watched and indexed — their contents appear above when relevant to the conversation.
 - Reminders: you can set reminders (e.g. "remind me to...") and pending ones appear above.
 - Web search: when you need current information, a web search is run automatically and results are injected above."""
 
@@ -244,14 +245,18 @@ class MemoryService:
             lines = "\n".join(f"- {m}" for m in memories)
             prompt += f"\n\nThings you know about the user:\n{lines}"
         if query:
+            from backend.services.notes_watcher import notes_watcher_service
+            if notes_watcher_service.active:
+                notes = notes_watcher_service.search(query)
+                if notes:
+                    lines = "\n".join(f"[{n['source']}] {n['text']}" for n in notes)
+                    prompt += f"\n\nContext from the user's personal notes (watched folders):\n{lines}"
+
             from backend.services.claude_memory import claude_memory_service
             claude_mems = claude_memory_service.search(query)
             if claude_mems:
                 lines = "\n".join(f"[{m['source']}] {m['text']}" for m in claude_mems)
-                prompt += (
-                    f"\n\nContext from the user's Claude Code memory files"
-                    f" (each entry is sourced from a markdown file in the local vector database):\n{lines}"
-                )
+                prompt += f"\n\nContext from Claude Code memory files (supplementary):\n{lines}"
         if reminders:
             lines = "\n".join(
                 f"- {r['text']}" + (f" (due: {r['due_time']})" if r.get("due_time") else "")

@@ -26,6 +26,11 @@ async def startup():
             from backend.services.claude_memory import claude_memory_service
             claude_memory_service.start(claude_mem_path)
 
+        notes_paths = config.get("notes_folders", [])
+        if notes_paths:
+            from backend.services.notes_watcher import notes_watcher_service
+            notes_watcher_service.start(notes_paths)
+
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -33,6 +38,11 @@ async def shutdown():
         try:
             from backend.services.scheduler import scheduler_service
             scheduler_service.stop()
+        except Exception:
+            pass
+        try:
+            from backend.services.notes_watcher import notes_watcher_service
+            notes_watcher_service.stop()
         except Exception:
             pass
 
