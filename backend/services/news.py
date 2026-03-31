@@ -3,6 +3,14 @@ from urllib.parse import urlparse
 from backend.config import config
 
 
+def _is_article_url(url: str) -> bool:
+    """Return True if the URL looks like a specific article rather than a homepage or section page."""
+    path = urlparse(url).path.strip("/")
+    segments = [s for s in path.split("/") if s]
+    # Articles have at least 2 path segments and a reasonably long path
+    return len(segments) >= 2 and len(path) > 25
+
+
 class NewsService:
     def __init__(self):
         cfg = config.get("news", {})
@@ -22,29 +30,34 @@ class NewsService:
                         "https://api.tavily.com/search",
                         json={
                             "api_key": self.api_key,
-                            "query": f"latest news {topic}",
-                            "search_depth": "basic",
-                            "max_results": 3,
+                            "query": f"{topic} today",
+                            "search_depth": "advanced",
+                            "max_results": 5,
+                            "topic": "news",
                         },
-                        timeout=10,
+                        timeout=15,
                     )
                     res.raise_for_status()
                     data = res.json()
+                    topic_articles = []
                     for result in data.get("results", []):
                         title = result.get("title", "").strip()
                         url = result.get("url", "").strip()
                         content = result.get("content", "").strip()
                         if not title or not url:
                             continue
+                        if not _is_article_url(url):
+                            continue
                         source = urlparse(url).netloc.replace("www.", "")
-                        articles.append({
+                        topic_articles.append({
                             "topic": topic,
                             "title": title,
                             "url": url,
                             "source": source,
-                            "content": content,   # full content for LLM
-                            "insight": "",        # filled in by _curate_news
+                            "content": content,
+                            "insight": "",
                         })
+                    articles.extend(topic_articles)
                 except Exception:
                     continue
         return articles
