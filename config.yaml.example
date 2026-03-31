@@ -45,7 +45,7 @@ notifications:
 
 # Cloud provider API keys — leave blank if not using
 groq_api_key: ""         # Groq — console.groq.com (free tier, llama-3.3-70b)
-gemini_api_key: ""       # Google AI Studio — aistudio.google.com (free tier, use AI Studio key)
+gemini_api_key: ""       # Google AI Studio — aistudio.google.com (free tier, use AI Studio key not Cloud Console)
 anthropic_api_key: ""    # Anthropic — console.anthropic.com
 openai_api_key: ""       # OpenAI — platform.openai.com
 openai_model: gpt-5.4-nano
