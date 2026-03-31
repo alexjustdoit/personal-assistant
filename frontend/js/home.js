@@ -1,10 +1,27 @@
+// --- Time period ---
+
+function getPeriod() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 22) return 'evening';
+  return 'night';
+}
+
+const PERIOD_LABELS = {
+  morning: 'Morning Briefing',
+  afternoon: 'Afternoon Check-in',
+  evening: 'Evening Briefing',
+  night: "Tonight's Overview",
+};
+
 // --- Greeting ---
 
 function setGreeting() {
   const hour = new Date().getHours();
   let greeting;
-  if (hour < 12) greeting = 'Good morning';
-  else if (hour < 17) greeting = 'Good afternoon';
+  if (hour >= 5 && hour < 12) greeting = 'Good morning';
+  else if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
   else greeting = 'Good evening';
   document.getElementById('greeting').textContent = greeting;
 
@@ -16,9 +33,20 @@ function setGreeting() {
 // --- Briefing ---
 
 async function loadBriefing() {
+  const period = getPeriod();
+  document.getElementById('briefing-label').textContent = PERIOD_LABELS[period];
+
   try {
-    const res = await fetch('/api/briefing/latest');
+    const res = await fetch('/api/briefing/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period }),
+    });
+
+    if (!res.ok) throw new Error('Request failed');
     const data = await res.json();
+
+    document.getElementById('briefing-loading').classList.add('hidden');
 
     if (data.content) {
       document.getElementById('briefing-text').textContent = data.content;
@@ -32,10 +60,11 @@ async function loadBriefing() {
       }
       document.getElementById('briefing-section').classList.remove('hidden');
     } else {
-      document.getElementById('briefing-empty').classList.remove('hidden');
+      document.getElementById('briefing-error').classList.remove('hidden');
     }
   } catch {
-    document.getElementById('briefing-empty').classList.remove('hidden');
+    document.getElementById('briefing-loading').classList.add('hidden');
+    document.getElementById('briefing-error').classList.remove('hidden');
   }
 }
 
@@ -112,7 +141,7 @@ async function loadChats() {
   }
 }
 
-// --- New chat link sets a fresh session ---
+// --- New chat link ---
 
 document.getElementById('new-chat-link').addEventListener('click', (e) => {
   e.preventDefault();

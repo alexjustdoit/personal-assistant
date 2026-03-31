@@ -24,19 +24,26 @@
     </div>
 
     <!-- Briefing card -->
-    <div id="briefing-section" class="mb-10 hidden">
-      <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Morning Briefing</h2>
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <div class="mb-10">
+      <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3" id="briefing-label">Briefing</h2>
+
+      <!-- Loading state -->
+      <div id="briefing-loading" class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <div class="flex items-center gap-3 text-gray-500 text-sm">
+          <div class="loading-dots"><span></span><span></span><span></span></div>
+          <span>Generating your briefing…</span>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div id="briefing-section" class="hidden bg-gray-900 border border-gray-800 rounded-2xl p-6">
         <p id="briefing-text" class="text-gray-200 text-sm leading-relaxed"></p>
         <p id="briefing-time" class="text-gray-600 text-xs mt-4"></p>
       </div>
-    </div>
 
-    <!-- No briefing placeholder -->
-    <div id="briefing-empty" class="mb-10 hidden">
-      <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Morning Briefing</h2>
-      <div class="bg-gray-900/50 border border-gray-800/50 border-dashed rounded-2xl p-6 text-center">
-        <p class="text-gray-600 text-sm">No briefing yet — check back after your configured briefing time.</p>
+      <!-- Error state -->
+      <div id="briefing-error" class="hidden bg-gray-900/50 border border-gray-800/50 border-dashed rounded-2xl p-6 text-center">
+        <p class="text-gray-600 text-sm">Couldn't generate a briefing — check that Ollama is running.</p>
       </div>
     </div>
 

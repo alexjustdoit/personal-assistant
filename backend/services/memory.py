@@ -3,7 +3,7 @@ import sqlite3
 import asyncio
 import uuid
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 DB_PATH = DATA_DIR / "conversations.db"
@@ -156,6 +156,17 @@ class MemoryService:
                 (content, datetime.utcnow().isoformat()),
             )
             conn.commit()
+
+    def get_recent_briefing(self, max_age_hours: int = 6) -> dict | None:
+        cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT content, generated_at FROM briefings WHERE generated_at > ? ORDER BY id DESC LIMIT 1",
+                (cutoff,),
+            ).fetchone()
+        if row:
+            return {"content": row[0], "generated_at": row[1]}
+        return None
 
     def get_latest_briefing(self) -> dict | None:
         with sqlite3.connect(DB_PATH) as conn:

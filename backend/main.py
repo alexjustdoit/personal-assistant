@@ -118,6 +118,17 @@ async def get_latest_briefing():
     return briefing or {}
 
 
+@app.post("/api/briefing/generate")
+async def generate_briefing(request: Request):
+    data = await request.json()
+    period = data.get("period", "morning")
+    if period not in ("morning", "afternoon", "evening", "night"):
+        period = "morning"
+    from backend.services.briefing import generate_on_demand_briefing
+    content = await generate_on_demand_briefing(period)
+    return {"content": content}
+
+
 @app.get("/api/providers")
 async def get_providers():
     from backend.services.llm import llm_router
