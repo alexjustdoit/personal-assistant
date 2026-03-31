@@ -59,27 +59,37 @@ class ClaudeMemoryService:
     def _ingest_all(self, path: Path):
         for md_file in path.rglob("*.md"):
             if md_file.name != "MEMORY.md":
-                self._ingest_file(md_file)
+                self._ingest_file(md_file, check_mtime=True)
 
-    def _ingest_file(self, path: Path):
+    def _ingest_file(self, path: Path, check_mtime: bool = False):
         try:
+            doc_id = path.stem
+            mtime = path.stat().st_mtime
+
+            if check_mtime:
+                col = self._get_collection()
+                existing = col.get(ids=[doc_id], include=["metadatas"])
+                if existing["ids"]:
+                    stored = (existing["metadatas"][0] or {}).get("last_modified", 0)
+                    if abs(stored - mtime) < 1:
+                        return  # unchanged since last index
+
             text = path.read_text(encoding="utf-8").strip()
             if not text:
                 return
-            # Strip YAML frontmatter
             if text.startswith("---"):
                 end = text.find("---", 3)
                 if end != -1:
                     text = text[end + 3:].strip()
             if not text:
                 return
-            doc_id = path.stem
             col = self._get_collection()
+            meta = [{"last_modified": mtime}]
             existing = col.get(ids=[doc_id])
             if existing["ids"]:
-                col.update(ids=[doc_id], documents=[text])
+                col.update(ids=[doc_id], documents=[text], metadatas=meta)
             else:
-                col.add(ids=[doc_id], documents=[text])
+                col.add(ids=[doc_id], documents=[text], metadatas=meta)
             print(f"[ClaudeMemory] Ingested: {path.name}")
         except Exception as e:
             print(f"[ClaudeMemory] Error ingesting {path}: {e}")

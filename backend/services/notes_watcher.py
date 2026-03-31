@@ -63,10 +63,21 @@ class NotesWatcherService:
     def _ingest_all(self, path: Path):
         for f in path.rglob("*"):
             if f.is_file() and f.suffix in TEXT_SUFFIXES:
-                self._ingest_file(f)
+                self._ingest_file(f, check_mtime=True)
 
-    def _ingest_file(self, path: Path):
+    def _ingest_file(self, path: Path, check_mtime: bool = False):
         try:
+            doc_id = self._doc_id(path)
+            mtime = path.stat().st_mtime
+
+            if check_mtime:
+                col = self._get_collection()
+                existing = col.get(ids=[doc_id], include=["metadatas"])
+                if existing["ids"]:
+                    stored = existing["metadatas"][0].get("last_modified", 0)
+                    if abs(stored - mtime) < 1:
+                        return  # unchanged since last index
+
             text = path.read_text(encoding="utf-8").strip()
             if not text:
                 return
@@ -76,9 +87,8 @@ class NotesWatcherService:
                     text = text[end + 3:].strip()
             if not text:
                 return
-            doc_id = self._doc_id(path)
             col = self._get_collection()
-            meta = [{"path": str(path), "filename": path.name, "stem": path.stem}]
+            meta = [{"path": str(path), "filename": path.name, "stem": path.stem, "last_modified": mtime}]
             existing = col.get(ids=[doc_id])
             if existing["ids"]:
                 col.update(ids=[doc_id], documents=[text], metadatas=meta)
