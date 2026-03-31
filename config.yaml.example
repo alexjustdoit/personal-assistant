@@ -54,10 +54,25 @@ govee:
   api_key: ""            # Govee Developer API key — developer.govee.com → Apply for API key
 
 claude_memory:
-  # Path to your iCloud-synced Claude Code memory folder
-  # Windows: C:\Users\YourName\Apple\Mobile Documents\com~apple~CloudDocs\.claude\projects\<project-folder>\memory
-  # Mac:     /Users/YourName/Library/Mobile Documents/com~apple~CloudDocs/.claude/projects/<project-folder>/memory
+  # Optional — path to your Claude Code memory folder (iCloud-synced markdown files).
+  # Ingested as supplementary context. Leave blank to disable.
+  # Windows: C:\Users\YourName\iCloudDrive\.claude\projects\<project-folder>\memory
+  # Mac:     ~/Library/Mobile Documents/com~apple~CloudDocs/.claude/projects/<project-folder>/memory
   path: ""
+
+# Folders to watch and index as searchable context.
+# All paths are created automatically if they don't exist.
+# Keep this list narrow — broad paths (e.g. Documents) will ingest everything recursively.
+notes_folders:
+  # - "C:\\Users\\YourName\\Notes\\activity"   # activity logs (add if activity_tracking is enabled)
+  # - "C:\\Users\\YourName\\Notes\\personal"   # your own markdown/text notes
+
+activity_tracking:
+  enabled: false
+  log_folder: ""               # where to write activity log files — should also be in notes_folders
+  poll_interval_minutes: 30
+  eod_summary_time: "22:00"    # time to synthesize a daily summary (24hr, local time)
+  ignored_domains: []          # domains to exclude — also manageable via chat ("stop logging X")
 
 # Cloud provider API keys — leave blank if not using
 groq_api_key: ""         # Groq — console.groq.com (free tier, llama-3.3-70b)
