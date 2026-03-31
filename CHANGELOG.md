@@ -8,8 +8,6 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Web search in chat** — Tavily already integrated for news; expose it as a callable tool in chat so the LLM can search the web on demand for grounded, current answers
-- **Persistent memory** — ChromaDB already installed; store facts about the user across sessions and inject relevant context automatically into each conversation
 - **Todoist integration** — Connect to Todoist API for task/todo management; chat commands ("add X to my list", "what's due today") and a home page tile
 - **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
@@ -41,6 +39,29 @@ Allow the assistant to update certain config values (e.g. news topics) through c
 ### Portfolio / showcase
 - `DEMO.md` with screenshots and feature walkthrough
 - Demo video or GIF showing voice input, morning briefing, and smart home control
+
+---
+
+## [0.4] — 2026-03-31
+
+### Added — Web search in chat
+- `backend/services/search.py` — Tavily API client (httpx, no new dependency); `web_search()` and `search_enabled()`
+- Before each chat response, LLM classify call detects if current/real-time information is needed
+- If yes: sends `{"type": "searching", "query": "..."}` WS event, runs Tavily search, injects top results into system prompt
+- Frontend shows "Searching the web for '...'…" in the assistant bubble while search runs
+- Zero overhead when no search needed; graceful fallback if Tavily key not set
+- Tavily key stored in `news.api_key`; setup wizard label updated to mention chat search
+- `config.yaml.example` updated with `api_key` under news section
+
+### Added — Automatic memory extraction
+- After each user message, a background task (`asyncio.create_task`) extracts implicit personal facts via LLM
+- Saves preferences, relationships, habits, goals, and context automatically to ChromaDB — no "remember that" required
+- Complements existing explicit memory detection; explicit phrases still take priority
+- Extraction runs concurrently with the main response — zero latency impact
+
+### Fixed — Session-scoped reminders
+- Reminders are now fetched globally (not filtered by session ID) when building the system prompt
+- A reminder set in one chat now appears as context in all future chats
 
 ---
 

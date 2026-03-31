@@ -41,6 +41,7 @@ calendar:
 news:
   enabled: true
   topics: []             # e.g. ["technology", "politics", "local Seattle news"]
+  api_key: ""            # Tavily API key (free tier at tavily.com) — enables web search in chat
 
 notifications:
   ntfy_url: "https://ntfy.sh"

@@ -156,7 +156,21 @@ function connect() {
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'token') {
+      if (currentBubble && currentBubble.dataset.searching) {
+        // First token after search — restore streaming state
+        currentBubble.classList.add('streaming');
+        delete currentBubble.dataset.searching;
+      }
       appendToken(data.content);
+    } else if (data.type === 'searching') {
+      if (!currentBubble) startAssistantBubble();
+      currentBubble.dataset.searching = '1';
+      currentBubble.classList.remove('streaming');
+      currentBubble.innerHTML = '';
+      const span = document.createElement('span');
+      span.className = 'italic text-gray-500 text-xs';
+      span.textContent = `Searching the web for "${data.query}"…`;
+      currentBubble.appendChild(span);
     } else if (data.type === 'done') {
       finishStreaming();
       loadChatList(); // refresh names after first assistant reply
