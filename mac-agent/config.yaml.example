@@ -1,0 +1,14 @@
+# Mac Activity Agent — config
+#
+# log_folder: where to write activity logs.
+# This should be inside your iCloud Drive so the Windows PA picks them up.
+# iCloud Drive path on Mac: ~/Library/Mobile Documents/com~apple~CloudDocs/
+#
+# On Windows, add the matching iCloud path to notes_folders in config.yaml:
+#   notes_folders:
+#     - "C:\\Users\\you\\iCloudDrive\\PA-Activity"
+#
+log_folder: "~/Library/Mobile Documents/com~apple~CloudDocs/PA-Activity"
+
+# How far back to look in browser history each poll (should match poll interval)
+poll_interval_minutes: 30
