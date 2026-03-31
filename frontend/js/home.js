@@ -289,19 +289,24 @@ async function loadBriefing() {
   const period = getPeriod();
   document.getElementById('briefing-label').textContent = PERIOD_LABELS[period];
 
+  let data;
   try {
     const res = await fetch('/api/briefing/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ period }),
     });
-    if (!res.ok) throw new Error('Request failed');
-    const data = await res.json();
-    renderBriefing(data);
-  } catch {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    console.error('[briefing] fetch failed:', err);
     document.getElementById('briefing-loading').classList.add('hidden');
     document.getElementById('briefing-error').classList.remove('hidden');
+    return;
   }
+
+  console.log('[briefing] data received:', data);
+  renderBriefing(data);
 }
 
 // --- Chat list ---
