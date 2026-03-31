@@ -75,6 +75,47 @@ To access from another device on your network (laptop, phone), open `http://<you
 - **Outlook** — Calendar Settings → Shared calendars → publish → copy ICS link
 - **Apple Calendar** — Calendar → right-click calendar → Share Calendar → copy link
 
+## Windows Service (auto-start + gaming toggle)
+
+Running as a Windows service means the assistant starts automatically on boot and runs in the background without a terminal window.
+
+### Prerequisites
+
+Install NSSM (one time):
+```powershell
+winget install nssm
+```
+
+### Install the service
+
+In an Administrator PowerShell terminal, from the project root:
+```powershell
+.\service\install.ps1
+```
+
+The service (`PersonalAssistant`) will start immediately and auto-start on every boot.
+
+### Gaming toggle
+
+Stop the assistant before gaming, start it after. Double-click either file — they self-elevate to admin:
+
+| File | Action |
+|---|---|
+| `service\game_on.bat` | Stop assistant (free up resources) |
+| `service\game_off.bat` | Start assistant again |
+
+Tip: right-click each `.bat` file → *Create shortcut* → move shortcuts to your desktop for one-click access.
+
+### Remove the service
+
+```powershell
+.\service\uninstall.ps1
+```
+
+### Logs
+
+Service logs are written to `data\logs\assistant.log` (5 MB rotation).
+
 ## LLM Routing
 
 By default all requests go to Ollama (free, local). To use Claude or OpenAI:
@@ -125,4 +166,4 @@ personal-assistant/
 - [x] Phase 3 — Persistent memory (ChromaDB)
 - [x] Phase 4 — Proactive layer (briefings, reminders, calendar, news)
 - [x] Phase 5 — Onboarding wizard
-- [ ] Phase 6 — Windows service (auto-start, gaming toggle)
+- [x] Phase 6 — Windows service (auto-start, gaming toggle)
