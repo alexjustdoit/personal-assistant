@@ -9,6 +9,20 @@ router = APIRouter()
 
 REMINDER_TRIGGER = re.compile(r"(?i)\b(remind me|set a reminder|reminder)\b")
 
+# Keyword hints — skip LLM detection entirely if message has no relevant terms
+_SEARCH_HINT = re.compile(
+    r"\b(news|today|latest|current|recent|live|price|stock|weather|score|result|update|breaking|trending|now|who won|what happened)\b",
+    re.I,
+)
+_TODOIST_HINT = re.compile(
+    r"\b(task|tasks|todo|to-do|add|remind|complete|done|finish|list my|show my|schedule|due)\b",
+    re.I,
+)
+_GOVEE_HINT = re.compile(
+    r"\b(light|lights|lamp|bright|dim|turn on|turn off|smart home|color|colour|kelvin)\b",
+    re.I,
+)
+
 _SEARCH_SYSTEM = "You are a search router. Reply with JSON only, no explanation."
 _SEARCH_PROMPT = (
     "Does answering this message well require current or real-time information "
@@ -85,7 +99,7 @@ def parse_due_time(time_str: str | None) -> str | None:
 
 async def _detect_search(message: str) -> tuple[bool, str | None]:
     try:
-        response = await llm_router.complete([
+        response = await llm_router.complete_detect([
             {"role": "system", "content": _SEARCH_SYSTEM},
             {"role": "user", "content": _SEARCH_PROMPT.format(msg=message)},
         ])
@@ -101,7 +115,7 @@ async def _detect_search(message: str) -> tuple[bool, str | None]:
 
 async def _detect_todoist(message: str) -> dict | None:
     try:
-        response = await llm_router.complete([
+        response = await llm_router.complete_detect([
             {"role": "system", "content": _TODOIST_SYSTEM},
             {"role": "user", "content": _TODOIST_PROMPT.format(msg=message)},
         ])
@@ -120,7 +134,7 @@ async def _detect_govee(message: str) -> dict | None:
     devices = await get_devices()
     device_names = ", ".join(d.get("deviceName", "?") for d in devices) or "none"
     try:
-        response = await llm_router.complete([
+        response = await llm_router.complete_detect([
             {"role": "system", "content": _GOVEE_SYSTEM},
             {"role": "user", "content": _GOVEE_PROMPT.format(msg=message, devices=device_names)},
         ])
@@ -145,7 +159,7 @@ async def _auto_extract_memories(message: str):
             data = json.loads(m.group())
             for fact in data.get("facts", []):
                 if fact and len(fact.strip()) > 10:
-                    memory_service.save_memory(fact.strip())
+                    await asyncio.to_thread(memory_service.save_memory, fact.strip())
     except Exception:
         pass
 
@@ -173,7 +187,7 @@ async def chat_websocket(websocket: WebSocket):
             if user_message:
                 memory_text = memory_service.extract_memory(user_message)
                 if memory_text:
-                    memory_service.save_memory(memory_text)
+                    asyncio.create_task(asyncio.to_thread(memory_service.save_memory, memory_text))
                 else:
                     asyncio.create_task(_auto_extract_memories(user_message))
 
@@ -182,11 +196,11 @@ async def chat_websocket(websocket: WebSocket):
                 reminder = await extract_reminder(user_message)
                 if reminder:
                     due_time = parse_due_time(reminder.get("time_str"))
-                    memory_service.save_reminder(session_id, reminder["task"], due_time)
+                    await asyncio.to_thread(memory_service.save_reminder, session_id, reminder["task"], due_time)
 
             # --- System prompt ---
-            relevant_memories = memory_service.search_memories(user_message) if user_message else []
-            pending_reminders = memory_service.get_pending_reminders()
+            relevant_memories = await asyncio.to_thread(memory_service.search_memories, user_message) if user_message else []
+            pending_reminders = await asyncio.to_thread(memory_service.get_pending_reminders)
             system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders, query=user_message)
 
             # --- Parallel: search + todoist detect ---
@@ -195,11 +209,11 @@ async def chat_websocket(websocket: WebSocket):
             from backend.services.govee import govee_enabled, execute_govee_intent
 
             detect_tasks = {}
-            if user_message and search_enabled():
+            if user_message and search_enabled() and _SEARCH_HINT.search(user_message):
                 detect_tasks["search"] = asyncio.create_task(_detect_search(user_message))
-            if user_message and todoist_enabled():
+            if user_message and todoist_enabled() and _TODOIST_HINT.search(user_message):
                 detect_tasks["todoist"] = asyncio.create_task(_detect_todoist(user_message))
-            if user_message and govee_enabled():
+            if user_message and govee_enabled() and _GOVEE_HINT.search(user_message):
                 detect_tasks["govee"] = asyncio.create_task(_detect_govee(user_message))
 
             search_result = None

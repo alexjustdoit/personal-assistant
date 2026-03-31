@@ -22,6 +22,9 @@ class LLMRouter:
         self.ollama_models: list[str] = configured_models if configured_models else [self.model]
         if self.model not in self.ollama_models:
             self.ollama_models.insert(0, self.model)
+        # detection_model: small/fast Ollama model for search/todoist/govee detection.
+        # Falls back to main model if not set. E.g. "llama3.2:3b" or "phi3.5:mini"
+        self.detection_model = llm_cfg.get("detection_model", "") or self.model
         # briefing_provider overrides provider for briefing synthesis only
         self.briefing_provider = llm_cfg.get("briefing_provider", "") or self.provider
         self.anthropic_key = config.get("anthropic_api_key", "")
@@ -120,6 +123,13 @@ class LLMRouter:
             result += token
         return result.strip()
 
+    async def complete_detect(self, messages: list[dict]) -> str:
+        """Fast non-streaming completion for intent detection. Uses detection_model with low token budget."""
+        result = ""
+        async for token in self._stream_ollama(messages, model=self.detection_model, num_predict=80):
+            result += token
+        return result.strip()
+
     async def complete_briefing(self, messages: list[dict], provider: str | None = None) -> str:
         """Non-streaming completion using the configured briefing provider, or a given override."""
         result = ""
@@ -127,14 +137,14 @@ class LLMRouter:
             result += token
         return result.strip()
 
-    async def _stream_ollama(self, messages: list[dict], model: str | None = None) -> AsyncGenerator[str, None]:
+    async def _stream_ollama(self, messages: list[dict], model: str | None = None, num_predict: int = 400) -> AsyncGenerator[str, None]:
         import ollama
         client = ollama.AsyncClient(host=self.ollama_url)
         async for chunk in await client.chat(
             model=model or self.model,
             messages=messages,
             stream=True,
-            options={"num_predict": 400},
+            options={"num_predict": num_predict},
         ):
             token = chunk["message"]["content"]
             if token:
