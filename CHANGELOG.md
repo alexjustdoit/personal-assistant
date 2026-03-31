@@ -9,6 +9,7 @@ All notable changes to this project are documented here.
 ### Next up
 
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
+- **Notion session summaries** — Fetch Claude Code session summaries from a Notion database; answer questions like "what did I work on last week?" or "what decisions did I make on the TAM Copilot project?" via chat
 - **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
 - **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
