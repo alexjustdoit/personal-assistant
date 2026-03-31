@@ -21,3 +21,4 @@ pytz
 dateparser
 icalendar
 recurring-ical-events
+feedparser

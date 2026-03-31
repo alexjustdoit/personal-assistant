@@ -2,10 +2,12 @@ import json
 from datetime import datetime
 from backend.services.weather import weather_service
 from backend.services.news import news_service
+from backend.services.rss_news import get_rss_articles
 from backend.services.calendar_service import calendar_service
 from backend.services.notifications import notification_service
 from backend.services.memory import memory_service
 from backend.services.llm import llm_router
+from backend.config import config
 
 PERIOD_SYSTEM = {
     "morning": "You deliver friendly, energizing morning briefings.",
@@ -39,11 +41,6 @@ async def collect_briefing_data(period: str = "morning") -> dict:
         data["events"] = []
 
     try:
-        data["news"] = await news_service.get_articles()
-    except Exception:
-        data["news"] = []
-
-    try:
         data["reminders"] = memory_service.get_pending_reminders()
     except Exception:
         data["reminders"] = []
@@ -51,115 +48,107 @@ async def collect_briefing_data(period: str = "morning") -> dict:
     return data
 
 
-def _parse_curation(response: str, by_topic: dict[str, list[dict]]) -> list[dict]:
-    """Parse the LLM's structured curation response into a list of chosen articles."""
-    curated = []
-    current_topic = None
-    current_pick = 1
-    current_insight = ""
+def _parse_synthesis(response: str, topics: list[str]) -> dict[str, str]:
+    """Parse TOPIC/SUMMARY format into {topic: summary_text} dict."""
+    summaries: dict[str, str] = {}
+    current_topic: str | None = None
+    current_lines: list[str] = []
 
     for line in response.splitlines():
         line = line.strip()
         if line.upper().startswith("TOPIC:"):
-            # Save previous block before starting a new one
-            if current_topic and current_topic in by_topic:
-                articles = by_topic[current_topic]
-                idx = max(0, min(current_pick - 1, len(articles) - 1))
-                article = dict(articles[idx])
-                article["insight"] = current_insight
-                curated.append(article)
-            # Look up topic name case-insensitively
+            if current_topic is not None:
+                summaries[current_topic] = " ".join(current_lines).strip()
             raw = line[6:].strip()
-            match = next((t for t in by_topic if t.lower() == raw.lower()), raw)
+            match = next((t for t in topics if t.lower() == raw.lower()), raw)
             current_topic = match
-            current_pick = 1
-            current_insight = ""
-        elif line.upper().startswith("PICK:"):
-            try:
-                current_pick = int(line[5:].strip())
-            except ValueError:
-                current_pick = 1
-        elif line.upper().startswith("INSIGHT:"):
-            current_insight = line[8:].strip()
+            current_lines = []
+        elif line.upper().startswith("SUMMARY:"):
+            current_lines = [line[8:].strip()]
+        elif current_topic is not None and line:
+            # Handle multi-line summaries
+            current_lines.append(line)
 
-    # Save the last block
-    if current_topic and current_topic in by_topic:
-        articles = by_topic[current_topic]
-        idx = max(0, min(current_pick - 1, len(articles) - 1))
-        article = dict(articles[idx])
-        article["insight"] = current_insight
-        curated.append(article)
+    if current_topic is not None:
+        summaries[current_topic] = " ".join(current_lines).strip()
 
-    # Fill in any topics the LLM skipped — use top article, no insight
-    covered = {a["topic"] for a in curated}
-    for topic, articles in by_topic.items():
-        if topic not in covered and articles:
-            fallback = dict(articles[0])
-            fallback["insight"] = ""
-            curated.append(fallback)
-
-    return curated
+    return summaries
 
 
-def _build_summary(data: dict, curated_news: list[dict]) -> str:
+async def _synthesize_rss_news(topics: list[str], period: str) -> list[dict]:
     """
-    Compose a summary from curated results — no extra LLM call needed.
-    Uses weather + the top curated insight so it always matches what's shown.
+    Fetch RSS headlines for each topic, then ask the LLM to write a
+    2-3 sentence synthesis per topic. Returns list of news tile dicts.
     """
-    parts = []
-    if data.get("weather"):
-        w = data["weather"]
-        parts.append(f"{w['description']} in {w['city']}, {w['temp']}{w['unit']}")
-    for article in curated_news[:2]:
-        if article.get("insight"):
-            parts.append(article["insight"])
-    return "  ·  ".join(parts)
+    raw_articles = await get_rss_articles(topics)
+    if not raw_articles:
+        return []
 
-
-async def _curate_and_summarize(data: dict, period: str) -> tuple[list[dict], str]:
-    """
-    Single Ollama call: picks the best news article per topic and writes
-    a one-sentence insight for each. Summary is composed from the results.
-    Returns (curated_articles, summary_string).
-    """
-    articles = data.get("news", [])
-
+    # Group by topic, preserving order
     by_topic: dict[str, list[dict]] = {}
-    for a in articles:
+    for a in raw_articles:
         by_topic.setdefault(a["topic"], []).append(a)
 
     topic_blocks = []
-    for topic, topic_articles in by_topic.items():
+    for topic, articles in by_topic.items():
         lines = [f"TOPIC: {topic}"]
-        for i, a in enumerate(topic_articles, 1):
-            content_preview = a.get("content", "")[:400].strip()
-            lines.append(f"  [{i}] {a['title']}")
-            if content_preview:
-                lines.append(f"      {content_preview}")
+        for a in articles:
+            if a.get("description"):
+                lines.append(f"  - {a['title']} ({a['source']}): {a['description']}")
+            else:
+                lines.append(f"  - {a['title']} ({a['source']})")
         topic_blocks.append("\n".join(lines))
 
     prompt = (
-        "You are a news editor. For each topic, pick the single most newsworthy article "
-        "and write one sentence explaining why it matters. Be specific — reference the actual story.\n\n"
-        "Reply in exactly this format for each topic:\n"
+        "You are a news briefing writer. For each topic below, write 2-3 sentences "
+        "summarizing the most notable recent developments based on the headlines provided. "
+        "Be specific — reference actual events, trends, or people mentioned. "
+        "Do not invent facts beyond what the headlines imply.\n\n"
+        "Reply in exactly this format for each topic (no extra text):\n"
         "TOPIC: <name>\n"
-        "PICK: <number>\n"
-        "INSIGHT: <one sentence>\n\n"
+        "SUMMARY: <2-3 sentences>\n\n"
         "---\n\n"
         + "\n\n".join(topic_blocks)
     )
 
     try:
         response = await llm_router.complete([
-            {"role": "system", "content": "You are a news editor. Follow the output format exactly."},
+            {"role": "system", "content": "You are a news briefing writer. Follow the output format exactly."},
             {"role": "user", "content": prompt},
         ])
-        curated = _parse_curation(response, by_topic) if by_topic else []
+        summaries = _parse_synthesis(response, list(by_topic.keys()))
     except Exception:
-        curated = [dict(a_list[0]) for a_list in by_topic.values() if a_list]
+        summaries = {}
 
-    summary = _build_summary(data, curated)
-    return curated, summary
+    result = []
+    for topic, articles in by_topic.items():
+        # Deduplicate sources, keep up to 3
+        sources = list(dict.fromkeys(a["source"] for a in articles))[:3]
+        result.append({
+            "topic": topic,
+            "summary": summaries.get(topic, ""),
+            "sources": sources,
+        })
+
+    return result
+
+
+def _build_summary(data: dict, news_tiles: list[dict]) -> str:
+    """
+    Compose the summary card text from weather + first sentence of top news summaries.
+    """
+    parts = []
+    if data.get("weather"):
+        w = data["weather"]
+        parts.append(f"{w['description']} in {w['city']}, {w['temp']}{w['unit']}")
+    for tile in news_tiles[:2]:
+        summary = tile.get("summary", "")
+        if summary:
+            # Take just the first sentence
+            first = summary.split(".")[0].strip()
+            if first:
+                parts.append(first)
+    return "  ·  ".join(parts)
 
 
 async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
@@ -175,7 +164,14 @@ async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
                 pass
 
     data = await collect_briefing_data(period)
-    data["news"], data["summary"] = await _curate_and_summarize(data, period)
+
+    topics = config.get("news", {}).get("topics", [])
+    if topics:
+        data["news"] = await _synthesize_rss_news(topics, period)
+    else:
+        data["news"] = []
+
+    data["summary"] = _build_summary(data, data["news"])
     memory_service.save_briefing(json.dumps(data))
     return data
 
@@ -183,7 +179,12 @@ async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
 async def generate_and_send_briefing():
     """Scheduled morning briefing: generates structured data, narrates via LLM, sends ntfy."""
     data = await collect_briefing_data("morning")
-    data["news"], _ = await _curate_and_summarize(data, "morning")
+
+    topics = config.get("news", {}).get("topics", [])
+    if topics:
+        data["news"] = await _synthesize_rss_news(topics, "morning")
+    else:
+        data["news"] = []
 
     sections = []
     if data.get("weather"):
@@ -198,8 +199,8 @@ async def generate_and_send_briefing():
 
     if data.get("news"):
         lines = "\n".join(
-            f"  - {a['title']} — {a.get('insight', '')} ({a['source']})"
-            for a in data["news"]
+            f"  - {tile['topic']}: {tile.get('summary', '')}"
+            for tile in data["news"]
         )
         sections.append(f"News highlights:\n{lines}")
 

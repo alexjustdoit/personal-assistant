@@ -162,7 +162,7 @@ function buildRemindersTile(reminders) {
 
 // --- News cards ---
 
-function buildNewsSection(articles) {
+function buildNewsSection(tiles) {
   const wrapper = document.createElement('div');
 
   const header = document.createElement('div');
@@ -173,39 +173,32 @@ function buildNewsSection(articles) {
   const grid = document.createElement('div');
   grid.className = 'space-y-2';
 
-  for (const article of articles) {
-    const card = document.createElement('a');
-    card.href = article.url;
-    card.target = '_blank';
-    card.rel = 'noopener noreferrer';
-    card.className = 'flex flex-col gap-1 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 hover:bg-gray-800/60 transition-all group';
+  for (const tile of tiles) {
+    const card = document.createElement('div');
+    card.className = 'flex flex-col gap-1.5 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl';
 
     const topRow = document.createElement('div');
     topRow.className = 'flex items-center justify-between gap-2';
 
     const topic = document.createElement('span');
-    topic.className = 'text-xs text-indigo-400 font-medium flex-shrink-0';
-    topic.textContent = article.topic;
-
-    const source = document.createElement('span');
-    source.className = 'text-xs text-gray-600 flex-shrink-0';
-    source.textContent = article.source;
+    topic.className = 'text-xs text-indigo-400 font-semibold uppercase tracking-wide';
+    topic.textContent = tile.topic;
 
     topRow.appendChild(topic);
-    topRow.appendChild(source);
-
-    const title = document.createElement('div');
-    title.className = 'text-sm text-gray-200 font-medium group-hover:text-white transition-colors leading-snug';
-    title.textContent = article.title;
-
     card.appendChild(topRow);
-    card.appendChild(title);
 
-    if (article.insight) {
-      const insight = document.createElement('div');
-      insight.className = 'text-xs text-gray-400 leading-relaxed mt-0.5';
-      insight.textContent = article.insight;
-      card.appendChild(insight);
+    if (tile.summary) {
+      const summary = document.createElement('div');
+      summary.className = 'text-sm text-gray-300 leading-relaxed';
+      summary.textContent = tile.summary;
+      card.appendChild(summary);
+    }
+
+    if (tile.sources && tile.sources.length > 0) {
+      const sources = document.createElement('div');
+      sources.className = 'text-xs text-gray-600 mt-0.5';
+      sources.textContent = 'Sources: ' + tile.sources.join(', ');
+      card.appendChild(sources);
     }
 
     grid.appendChild(card);
