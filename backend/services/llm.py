@@ -76,10 +76,10 @@ class LLMRouter:
             result += token
         return result.strip()
 
-    async def complete_briefing(self, messages: list[dict]) -> str:
-        """Non-streaming completion using the configured briefing provider."""
+    async def complete_briefing(self, messages: list[dict], provider: str | None = None) -> str:
+        """Non-streaming completion using the configured briefing provider, or a given override."""
         result = ""
-        async for token in self.stream(messages, provider_override=self.briefing_provider):
+        async for token in self.stream(messages, provider_override=provider or self.briefing_provider):
             result += token
         return result.strip()
 

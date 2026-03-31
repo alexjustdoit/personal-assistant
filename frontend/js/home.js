@@ -375,10 +375,11 @@ async function loadBriefing(force = false) {
 
   let data;
   try {
+    const provider = document.getElementById('provider-select').value;
     const res = await fetch('/api/briefing/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period, force }),
+      body: JSON.stringify({ period, force, provider }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
@@ -396,8 +397,28 @@ async function loadBriefing(force = false) {
 
 document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));
 
+// --- Providers ---
+
+async function loadProviders() {
+  const select = document.getElementById('provider-select');
+  try {
+    const res = await fetch('/api/providers');
+    const data = await res.json();
+    select.innerHTML = '';
+    for (const p of data.providers) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      if (p.id === data.default) opt.selected = true;
+      select.appendChild(opt);
+    }
+  } catch {
+    select.innerHTML = '<option value="ollama">Ollama</option>';
+  }
+}
+
 // --- Init ---
 
 setGreeting();
-loadBriefing();
+loadProviders().then(() => loadBriefing());
 loadChatList();

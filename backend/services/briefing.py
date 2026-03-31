@@ -60,7 +60,7 @@ def _format_article_for_prompt(article: dict) -> str:
     return "\n".join(lines)
 
 
-async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str:
+async def _synthesize_topic(topic: str, articles: list[dict], today: str, provider: str | None = None) -> str:
     """
     Single LLM call for one topic. Instructs the model to identify the
     lead story first (chain-of-thought), then produce the summary.
@@ -84,7 +84,7 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str
         response = await llm_router.complete_briefing([
             {"role": "system", "content": "You are a news briefing editor. Follow the output format exactly."},
             {"role": "user", "content": prompt},
-        ])
+        ], provider=provider)
         logger.info("[briefing] %s raw response: %s", topic, response[:300])
         # Extract SUMMARY from response
         summary_lines = []
@@ -104,7 +104,7 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str
         return ""
 
 
-async def _synthesize_rss_news(topics: list[str]) -> list[dict]:
+async def _synthesize_rss_news(topics: list[str], provider: str | None = None) -> list[dict]:
     """
     Fetch RSS articles for all topics, enrich with full text, then run
     per-topic LLM synthesis calls in parallel.
@@ -132,7 +132,7 @@ async def _synthesize_rss_news(topics: list[str]) -> list[dict]:
     # Sequential LLM calls — avoids per-minute rate limits on free tier APIs
     summaries = []
     for topic, articles in by_topic.items():
-        summary = await _synthesize_topic(topic, articles, today)
+        summary = await _synthesize_topic(topic, articles, today, provider=provider)
         summaries.append(summary)
 
     result = []
@@ -160,7 +160,7 @@ def _build_summary(data: dict, news_tiles: list[dict]) -> str:
     return "  ·  ".join(parts)
 
 
-async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
+async def generate_on_demand_briefing(period: str, force: bool = False, provider: str | None = None) -> dict:
     """Return a structured briefing dict. Uses cached version if < 6 hours old."""
     if not force:
         cached = memory_service.get_recent_briefing(max_age_hours=6)
@@ -175,7 +175,7 @@ async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
     data = await collect_briefing_data(period)
 
     topics = config.get("news", {}).get("topics", [])
-    data["news"] = await _synthesize_rss_news(topics) if topics else []
+    data["news"] = await _synthesize_rss_news(topics, provider=provider) if topics else []
     data["summary"] = _build_summary(data, data["news"])
 
     memory_service.save_briefing(json.dumps(data))
