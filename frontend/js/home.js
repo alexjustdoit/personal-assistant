@@ -233,6 +233,17 @@ function renderBriefing(data) {
     return;
   }
 
+  // Ollama summary sentence
+  if (data.summary) {
+    const summaryCard = document.createElement('div');
+    summaryCard.className = 'px-5 py-4 bg-indigo-950/40 border border-indigo-800/40 rounded-2xl';
+    const summaryText = document.createElement('p');
+    summaryText.className = 'text-gray-200 text-sm leading-relaxed italic';
+    summaryText.textContent = data.summary;
+    summaryCard.appendChild(summaryText);
+    container.appendChild(summaryCard);
+  }
+
   // Top row: weather + calendar side by side (if both present), or full-width if only one
   if (hasWeather && hasEvents) {
     const row = document.createElement('div');

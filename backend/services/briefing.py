@@ -51,6 +51,40 @@ async def collect_briefing_data(period: str = "morning") -> dict:
     return data
 
 
+async def _generate_summary(data: dict, period: str) -> str:
+    """Ask Ollama for a single-sentence highlight of the briefing. Returns '' on failure."""
+    lines = []
+    if data.get("weather"):
+        w = data["weather"]
+        lines.append(f"Weather: {w['description']}, {w['temp']}{w['unit']} in {w['city']}")
+    if data.get("events"):
+        titles = ", ".join(e["title"] for e in data["events"][:3])
+        lines.append(f"Calendar: {titles}")
+    if data.get("news"):
+        lines.append(f"Top story: {data['news'][0]['title']}")
+    if data.get("reminders"):
+        lines.append(f"Reminders: {len(data['reminders'])} pending")
+
+    if not lines:
+        return ""
+
+    tone = {"morning": "energizing", "afternoon": "practical", "evening": "reflective", "night": "calm"}.get(period, "friendly")
+    bullet_list = "\n".join(f"- {l}" for l in lines)
+    prompt = (
+        f"Write one short, {tone} sentence that highlights the most notable thing from this briefing. "
+        f"Be specific — mention actual details, not generic statements. No filler like 'Here is your briefing'.\n\n"
+        f"{bullet_list}"
+    )
+
+    try:
+        return await llm_router.complete([
+            {"role": "system", "content": "You write a single, specific sentence summarizing a briefing highlight."},
+            {"role": "user", "content": prompt},
+        ])
+    except Exception:
+        return ""
+
+
 async def generate_on_demand_briefing(period: str) -> dict:
     """Return a structured briefing dict. Uses cached version if < 6 hours old."""
     cached = memory_service.get_recent_briefing(max_age_hours=6)
@@ -61,6 +95,7 @@ async def generate_on_demand_briefing(period: str) -> dict:
             pass  # stale text-format briefing — regenerate
 
     data = await collect_briefing_data(period)
+    data["summary"] = await _generate_summary(data, period)
     memory_service.save_briefing(json.dumps(data))
     return data
 
