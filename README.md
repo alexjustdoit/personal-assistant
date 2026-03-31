@@ -12,7 +12,7 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - **Persistent memory** — remembers context and things you tell it *(Phase 3)*
 - **Morning briefings** — weather, calendar, and news digest delivered daily *(Phase 4)*
 - **Push notifications** — reminders via ntfy to phone or browser *(Phase 4)*
-- **Smart home** — Govee and other integrations *(Phase 2)*
+- **Smart home** — Govee light control via chat (on/off, brightness, color, color temperature)
 
 ## Requirements
 
@@ -118,6 +118,39 @@ By default all requests go to Ollama (free, local). To use Claude or OpenAI:
 A provider dropdown appears in the top-right of the UI, letting you switch models at runtime without touching config. Only providers with a configured API key are shown — a fresh install with no API keys shows Ollama only.
 
 Quality routing is used for tasks that need higher accuracy (Phase 4+). Normal chat uses whichever provider is selected in the UI.
+
+## Govee Smart Home
+
+Control Govee lights by talking to the assistant — e.g. *"turn off the bedroom light"*, *"set the strip to purple"*, *"dim everything to 30%"*.
+
+### Compatible devices
+
+Any Govee device that appears in the **Govee Developer API v1** is supported. This covers WiFi-enabled lights — most light strips, bulbs, floor lamps, table lamps, and LED panels. **BLE-only devices are not supported** (they never appear in the API).
+
+### Supported controls
+
+| Control | What you can say | Device requirement |
+|---|---|---|
+| On / Off | "turn on the desk lamp", "turn everything off" | All WiFi devices |
+| Brightness | "set brightness to 40%", "dim the strip" | Devices with `brightness` in `supportCmds` |
+| Color (RGB) | "set to red", "change the strip to teal" | Devices with `color` in `supportCmds` |
+| Color temperature | "warmer light", "set to 3000K" | Devices with `colorTem` in `supportCmds` |
+
+Color names understood: red, green, blue, white, warm white, cool white, yellow, orange, purple, pink, cyan, teal, magenta, indigo, lavender, lime, coral, turquoise. Raw `r,g,b` values also work (e.g. "255,100,0").
+
+You can target devices by name ("the bedroom light") or say "all" / "all lights" / "everything" to broadcast to all devices.
+
+### Setup
+
+1. Get a free API key at [developer.govee.com](https://developer.govee.com)
+2. Add it to `config.yaml`:
+   ```yaml
+   govee:
+     api_key: your-api-key-here
+   ```
+3. Restart the assistant.
+
+> **Rate limit:** The free Developer API tier allows ~100 requests/day. The device list is cached for 1 hour to minimize API calls — each control action consumes one request.
 
 ## Project Structure
 
