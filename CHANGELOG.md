@@ -9,6 +9,32 @@ All notable changes to this project are documented here.
 ### GUI-based setup wizard
 Replace the terminal setup wizard with a browser-based first-run flow. When `config.yaml` is missing, the app serves a setup page instead of the main UI. User fills in a multi-step form, submits, config is saved, and the app prompts a restart. Requires lazy config loading and a `POST /api/setup` endpoint.
 
+### Smart home — Govee integration
+Control Govee devices via the Govee Developer API. Planned device support (subject to API compatibility — verify at developer.govee.com):
+- **H6008 smart bulbs** — on/off, brightness, color temperature (likely supported)
+- **RGBIC Lyra floor lamp** — on/off, brightness, color/scene control (RGBIC support varies by model)
+- **Govee Life Smart air purifier** — on/off, mode/fan speed (appliance API support uncertain)
+
+Control via chat ("turn off the bedroom light", "set the lamp to red") using LLM intent detection and Govee API calls.
+
+### UI quality of life
+- New chat button — start a fresh conversation without clearing history
+- Thinking indicator — show a subtle animation while waiting for the first token
+- Markdown rendering in chat bubbles — code blocks, bold, lists rendered properly
+- Mobile layout improvements — better spacing and touch targets on iPhone
+
+### Expanded proactive layer
+- Proactive memory suggestions — assistant surfaces follow-ups based on things you've mentioned ("you mentioned booking a dentist appointment last week — did you get around to it?")
+- Weekly digest — summary of the week delivered via ntfy on a configured day
+- Reminder snooze — ntfy action buttons to snooze a reminder by 30 minutes or 1 hour
+
+### Runtime config editing
+Allow the assistant to update certain config values (e.g. news topics) through conversation. Requires a config write endpoint and live reload of affected services without restart.
+
+### Portfolio / showcase
+- `DEMO.md` with screenshots and feature walkthrough
+- Demo video or GIF showing voice input, morning briefing, and smart home control
+
 ---
 
 ## [0.5] — 2026-03-30
