@@ -124,7 +124,82 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label">Timezone</label>
-                  <input id="briefing-tz" type="text" value="America/New_York" class="form-input" placeholder="America/New_York" />
+                  <select id="briefing-tz" class="form-input">
+                    <optgroup label="North America">
+                      <option value="America/New_York" selected>Eastern Time (New York)</option>
+                      <option value="America/Chicago">Central Time (Chicago)</option>
+                      <option value="America/Denver">Mountain Time (Denver)</option>
+                      <option value="America/Phoenix">Mountain Time — no DST (Phoenix)</option>
+                      <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                      <option value="America/Anchorage">Alaska Time (Anchorage)</option>
+                      <option value="Pacific/Honolulu">Hawaii Time (Honolulu)</option>
+                      <option value="America/Toronto">Eastern Time (Toronto)</option>
+                      <option value="America/Vancouver">Pacific Time (Vancouver)</option>
+                      <option value="America/Halifax">Atlantic Time (Halifax)</option>
+                      <option value="America/Mexico_City">Central Time (Mexico City)</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                      <option value="Europe/London">GMT / BST (London)</option>
+                      <option value="Europe/Lisbon">Western European (Lisbon)</option>
+                      <option value="Europe/Paris">Central European (Paris)</option>
+                      <option value="Europe/Berlin">Central European (Berlin)</option>
+                      <option value="Europe/Amsterdam">Central European (Amsterdam)</option>
+                      <option value="Europe/Brussels">Central European (Brussels)</option>
+                      <option value="Europe/Madrid">Central European (Madrid)</option>
+                      <option value="Europe/Rome">Central European (Rome)</option>
+                      <option value="Europe/Zurich">Central European (Zurich)</option>
+                      <option value="Europe/Vienna">Central European (Vienna)</option>
+                      <option value="Europe/Prague">Central European (Prague)</option>
+                      <option value="Europe/Warsaw">Central European (Warsaw)</option>
+                      <option value="Europe/Stockholm">Central European (Stockholm)</option>
+                      <option value="Europe/Oslo">Central European (Oslo)</option>
+                      <option value="Europe/Copenhagen">Central European (Copenhagen)</option>
+                      <option value="Europe/Helsinki">Eastern European (Helsinki)</option>
+                      <option value="Europe/Athens">Eastern European (Athens)</option>
+                      <option value="Europe/Bucharest">Eastern European (Bucharest)</option>
+                      <option value="Europe/Kyiv">Eastern European (Kyiv)</option>
+                      <option value="Europe/Moscow">Moscow Time</option>
+                      <option value="Europe/Istanbul">Turkey Time (Istanbul)</option>
+                    </optgroup>
+                    <optgroup label="Asia &amp; Middle East">
+                      <option value="Asia/Dubai">Gulf Time (Dubai)</option>
+                      <option value="Asia/Karachi">Pakistan Time (Karachi)</option>
+                      <option value="Asia/Kolkata">India Time (Kolkata)</option>
+                      <option value="Asia/Dhaka">Bangladesh Time (Dhaka)</option>
+                      <option value="Asia/Bangkok">Indochina Time (Bangkok)</option>
+                      <option value="Asia/Singapore">Singapore Time</option>
+                      <option value="Asia/Hong_Kong">Hong Kong Time</option>
+                      <option value="Asia/Shanghai">China Time (Shanghai)</option>
+                      <option value="Asia/Taipei">Taiwan Time (Taipei)</option>
+                      <option value="Asia/Seoul">Korea Time (Seoul)</option>
+                      <option value="Asia/Tokyo">Japan Time (Tokyo)</option>
+                    </optgroup>
+                    <optgroup label="Australia &amp; Pacific">
+                      <option value="Australia/Perth">Australian Western (Perth)</option>
+                      <option value="Australia/Adelaide">Australian Central (Adelaide)</option>
+                      <option value="Australia/Brisbane">Australian Eastern — no DST (Brisbane)</option>
+                      <option value="Australia/Sydney">Australian Eastern (Sydney)</option>
+                      <option value="Australia/Melbourne">Australian Eastern (Melbourne)</option>
+                      <option value="Pacific/Auckland">New Zealand (Auckland)</option>
+                      <option value="Pacific/Honolulu">Hawaii (Honolulu)</option>
+                    </optgroup>
+                    <optgroup label="South America">
+                      <option value="America/Sao_Paulo">Brasilia Time (São Paulo)</option>
+                      <option value="America/Argentina/Buenos_Aires">Argentina Time (Buenos Aires)</option>
+                      <option value="America/Santiago">Chile Time (Santiago)</option>
+                      <option value="America/Bogota">Colombia Time (Bogotá)</option>
+                      <option value="America/Lima">Peru Time (Lima)</option>
+                    </optgroup>
+                    <optgroup label="Africa">
+                      <option value="Africa/Cairo">Eastern European (Cairo)</option>
+                      <option value="Africa/Johannesburg">South Africa Time (Johannesburg)</option>
+                      <option value="Africa/Lagos">West Africa Time (Lagos)</option>
+                      <option value="Africa/Nairobi">East Africa Time (Nairobi)</option>
+                    </optgroup>
+                    <optgroup label="Other">
+                      <option value="UTC">UTC</option>
+                    </optgroup>
+                  </select>
                 </div>
               </div>
             </div>
