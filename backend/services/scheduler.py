@@ -44,6 +44,25 @@ class SchedulerService:
             replace_existing=True,
         )
 
+        # Activity tracking
+        act_cfg = config.get("activity_tracking", {})
+        if act_cfg.get("enabled") and act_cfg.get("log_folder"):
+            interval = int(act_cfg.get("poll_interval_minutes", 30))
+            self._scheduler.add_job(
+                self._poll_activity,
+                IntervalTrigger(minutes=interval),
+                id="activity_poll",
+                replace_existing=True,
+            )
+            eod_time = act_cfg.get("eod_summary_time", "22:00")
+            eod_hour, eod_minute = map(int, eod_time.split(":"))
+            self._scheduler.add_job(
+                self._run_eod_summary,
+                CronTrigger(hour=eod_hour, minute=eod_minute, timezone=tz),
+                id="eod_summary",
+                replace_existing=True,
+            )
+
         self._scheduler.start()
 
     def stop(self):
@@ -63,18 +82,43 @@ class SchedulerService:
         except Exception as e:
             print(f"[Briefing] Evening error: {e}")
 
+    async def _poll_activity(self):
+        import asyncio
+        from backend.services.activity_tracker import write_activity_log
+        act_cfg = config.get("activity_tracking", {})
+        interval = int(act_cfg.get("poll_interval_minutes", 30))
+        try:
+            await asyncio.to_thread(write_activity_log, act_cfg["log_folder"], interval)
+        except Exception as e:
+            print(f"[ActivityTracker] Poll error: {e}")
+
+    async def _run_eod_summary(self):
+        from backend.services.activity_tracker import synthesize_day
+        act_cfg = config.get("activity_tracking", {})
+        try:
+            summary = await synthesize_day(act_cfg["log_folder"])
+            if summary:
+                from backend.services.notifications import notification_service
+                await notification_service.send(
+                    title="Day Summary ready",
+                    body="Your daily activity summary has been saved.",
+                )
+        except Exception as e:
+            print(f"[ActivityTracker] EOD summary error: {e}")
+
     async def _check_reminders(self):
+        import asyncio
         from backend.services.memory import memory_service
         from backend.services.notifications import notification_service
         try:
-            due = memory_service.get_due_reminders()
+            due = await asyncio.to_thread(memory_service.get_due_reminders)
             for reminder in due:
                 await notification_service.send(
                     title="Reminder",
                     body=reminder["text"],
                     priority="high",
                 )
-                memory_service.complete_reminder(reminder["id"])
+                await asyncio.to_thread(memory_service.complete_reminder, reminder["id"])
         except Exception as e:
             print(f"[Reminders] Error: {e}")
 
