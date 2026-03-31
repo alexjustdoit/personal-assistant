@@ -17,8 +17,20 @@ Control Govee devices via the Govee Developer API. Planned device support (subje
 
 Control via chat ("turn off the bedroom light", "set the lamp to red") using LLM intent detection and Govee API calls.
 
+### Home landing page
+Replace the current chat-first layout with a dedicated home/dashboard page as the default view:
+- Displays the most recent morning briefing (weather, calendar, news, reminders) in a clean card layout
+- Briefing updates each time the scheduler runs — persistent between visits
+- Quick-start button to jump directly into chat
+- Serves as the natural "glanceable" view when opening the app on phone or laptop
+
+### Multi-chat support
+- Store multiple named conversations, each with their own history
+- Sidebar or slide-out menu to browse and switch between chats
+- New chat button creates a fresh session without losing existing ones
+- Chat list sorted by most recently active
+
 ### UI quality of life
-- New chat button — start a fresh conversation without clearing history
 - Thinking indicator — show a subtle animation while waiting for the first token
 - Markdown rendering in chat bubbles — code blocks, bold, lists rendered properly
 - Mobile layout improvements — better spacing and touch targets on iPhone
