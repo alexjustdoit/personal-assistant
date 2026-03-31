@@ -563,17 +563,21 @@ async function loadProviders() {
   try {
     const res = await fetch('/api/providers');
     const data = await res.json();
+    const saved = localStorage.getItem('selected_provider');
     select.innerHTML = '';
     for (const p of data.providers) {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.label;
-      if (p.id === data.default) opt.selected = true;
+      if ((saved && p.id === saved) || (!saved && p.id === data.default)) opt.selected = true;
       select.appendChild(opt);
     }
   } catch {
     select.innerHTML = '<option value="ollama">Ollama</option>';
   }
+  select.addEventListener('change', () => {
+    localStorage.setItem('selected_provider', select.value);
+  });
 }
 
 // --- Calendar live refresh ---
