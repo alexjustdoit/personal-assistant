@@ -94,7 +94,7 @@ def setup_server():
 
 def setup_llm():
     header("LLM")
-    model = ask("Ollama model", default="llama3.1:8b")
+    model = ask("Ollama model", default="phi4")
     url = ask("Ollama URL", default="http://localhost:11434")
     print()
     test_ollama(url, model)

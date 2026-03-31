@@ -14,7 +14,7 @@ class LLMRouter:
         llm_cfg = config.get("llm", {})
         self._ready = bool(llm_cfg)
         self.provider = llm_cfg.get("provider", "ollama")
-        self.model = llm_cfg.get("model", "llama3.1:8b")
+        self.model = llm_cfg.get("model", "phi4")
         self.ollama_url = llm_cfg.get("ollama_url", "http://localhost:11434")
         self.quality_model = llm_cfg.get("quality_model", "ollama")
         # briefing_provider overrides provider for briefing synthesis only
