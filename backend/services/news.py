@@ -11,7 +11,7 @@ class NewsService:
         self.topics = cfg.get("topics", [])
 
     async def get_articles(self) -> list[dict]:
-        """Return structured articles with title, url, snippet, and source domain."""
+        """Return articles with title, url, source, and full content for LLM processing."""
         if not self.enabled or not self.api_key or not self.topics:
             return []
         articles = []
@@ -24,7 +24,7 @@ class NewsService:
                             "api_key": self.api_key,
                             "query": f"latest news {topic}",
                             "search_depth": "basic",
-                            "max_results": 2,
+                            "max_results": 3,
                         },
                         timeout=10,
                     )
@@ -33,19 +33,17 @@ class NewsService:
                     for result in data.get("results", []):
                         title = result.get("title", "").strip()
                         url = result.get("url", "").strip()
-                        snippet = result.get("content", "").strip()
+                        content = result.get("content", "").strip()
                         if not title or not url:
                             continue
                         source = urlparse(url).netloc.replace("www.", "")
-                        # Trim snippet to a reasonable length
-                        if len(snippet) > 200:
-                            snippet = snippet[:200].rsplit(" ", 1)[0] + "…"
                         articles.append({
                             "topic": topic,
                             "title": title,
                             "url": url,
-                            "snippet": snippet,
                             "source": source,
+                            "content": content,   # full content for LLM
+                            "insight": "",        # filled in by _curate_news
                         })
                 except Exception:
                     continue

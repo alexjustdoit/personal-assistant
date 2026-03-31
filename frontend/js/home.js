@@ -201,11 +201,11 @@ function buildNewsSection(articles) {
     card.appendChild(topRow);
     card.appendChild(title);
 
-    if (article.snippet) {
-      const snippet = document.createElement('div');
-      snippet.className = 'text-xs text-gray-500 leading-relaxed line-clamp-2';
-      snippet.textContent = article.snippet;
-      card.appendChild(snippet);
+    if (article.insight) {
+      const insight = document.createElement('div');
+      insight.className = 'text-xs text-gray-400 leading-relaxed mt-0.5';
+      insight.textContent = article.insight;
+      card.appendChild(insight);
     }
 
     grid.appendChild(card);
