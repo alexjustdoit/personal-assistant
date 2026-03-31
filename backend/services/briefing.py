@@ -101,20 +101,25 @@ def _parse_curation(response: str, by_topic: dict[str, list[dict]]) -> list[dict
     return curated
 
 
-def _parse_summary(response: str) -> str:
-    """Extract the SUMMARY line from the combined LLM response."""
-    for line in response.splitlines():
-        if line.strip().upper().startswith("SUMMARY:"):
-            return line.strip()[8:].strip()
-    return ""
+def _build_summary(data: dict, curated_news: list[dict]) -> str:
+    """
+    Compose a summary from curated results — no extra LLM call needed.
+    Uses weather + the top curated insight so it always matches what's shown.
+    """
+    parts = []
+    if data.get("weather"):
+        w = data["weather"]
+        parts.append(f"{w['description']} in {w['city']}, {w['temp']}{w['unit']}")
+    for article in curated_news[:2]:
+        if article.get("insight"):
+            parts.append(article["insight"])
+    return "  ·  ".join(parts)
 
 
 async def _curate_and_summarize(data: dict, period: str) -> tuple[list[dict], str]:
     """
-    Single Ollama call that:
-    1. Picks the best news article per topic and writes a one-sentence insight
-    2. Writes a one-sentence overall briefing summary
-
+    Single Ollama call: picks the best news article per topic and writes
+    a one-sentence insight for each. Summary is composed from the results.
     Returns (curated_articles, summary_string).
     """
     articles = data.get("news", [])
@@ -123,7 +128,6 @@ async def _curate_and_summarize(data: dict, period: str) -> tuple[list[dict], st
     for a in articles:
         by_topic.setdefault(a["topic"], []).append(a)
 
-    # News blocks
     topic_blocks = []
     for topic, topic_articles in by_topic.items():
         lines = [f"TOPIC: {topic}"]
@@ -134,51 +138,28 @@ async def _curate_and_summarize(data: dict, period: str) -> tuple[list[dict], st
                 lines.append(f"      {content_preview}")
         topic_blocks.append("\n".join(lines))
 
-    # Context for the summary sentence
-    context_lines = []
-    if data.get("weather"):
-        w = data["weather"]
-        context_lines.append(f"Weather: {w['description']}, {w['temp']}{w['unit']} in {w['city']}")
-    if data.get("events"):
-        titles = ", ".join(e["title"] for e in data["events"][:3])
-        context_lines.append(f"Calendar: {titles}")
-    if data.get("reminders"):
-        context_lines.append(f"Reminders: {len(data['reminders'])} pending")
-
-    tone = {"morning": "energizing", "afternoon": "practical", "evening": "reflective", "night": "calm"}.get(period, "friendly")
-
     prompt = (
-        "Complete two tasks:\n\n"
-        "TASK 1 — For each news topic, pick the single most newsworthy article and write one sentence "
-        "explaining why it matters. Be specific — reference the actual story.\n\n"
-        "TASK 2 — Write one short, " + tone + " sentence summarizing the most notable thing "
-        "across the full briefing (news, weather, and calendar combined).\n\n"
-        "Reply in exactly this format:\n"
+        "You are a news editor. For each topic, pick the single most newsworthy article "
+        "and write one sentence explaining why it matters. Be specific — reference the actual story.\n\n"
+        "Reply in exactly this format for each topic:\n"
         "TOPIC: <name>\n"
         "PICK: <number>\n"
         "INSIGHT: <one sentence>\n\n"
-        "(repeat for each topic)\n\n"
-        "SUMMARY: <one sentence overall highlight>\n\n"
         "---\n\n"
+        + "\n\n".join(topic_blocks)
     )
-
-    if topic_blocks:
-        prompt += "NEWS ARTICLES:\n\n" + "\n\n".join(topic_blocks)
-
-    if context_lines:
-        prompt += "\n\nOTHER CONTEXT:\n" + "\n".join(f"- {l}" for l in context_lines)
 
     try:
         response = await llm_router.complete([
-            {"role": "system", "content": "You are a news editor and briefing assistant. Follow the output format exactly."},
+            {"role": "system", "content": "You are a news editor. Follow the output format exactly."},
             {"role": "user", "content": prompt},
         ])
         curated = _parse_curation(response, by_topic) if by_topic else []
-        summary = _parse_summary(response)
-        return curated, summary
     except Exception:
-        fallback = [dict(a_list[0]) for a_list in by_topic.values() if a_list]
-        return fallback, ""
+        curated = [dict(a_list[0]) for a_list in by_topic.values() if a_list]
+
+    summary = _build_summary(data, curated)
+    return curated, summary
 
 
 async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
