@@ -122,10 +122,12 @@ function buildConfig() {
   const ntfyTopic = document.getElementById('ntfy-topic').value.trim();
   const anthropicKey = document.getElementById('anthropic-key').value.trim();
   const openaiKey = document.getElementById('openai-key').value.trim();
+  const geminiKey = document.getElementById('gemini-key').value.trim();
 
-  // quality_model: prefer cloud if configured, otherwise ollama
+  // quality_model: prefer best available cloud, otherwise ollama
   let qualityModel = 'ollama';
-  if (anthropicKey) qualityModel = 'claude';
+  if (geminiKey) qualityModel = 'gemini';
+  else if (anthropicKey) qualityModel = 'claude';
   else if (openaiKey) qualityModel = 'openai';
 
   return {
@@ -174,6 +176,7 @@ function buildConfig() {
     anthropic_api_key: anthropicKey,
     openai_api_key: openaiKey,
     openai_model: 'gpt-4o-mini',
+    gemini_api_key: geminiKey,
   };
 }
 

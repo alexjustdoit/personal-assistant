@@ -2,6 +2,9 @@ from typing import AsyncGenerator
 import httpx
 from backend.config import config
 
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+GEMINI_MODEL = "gemini-2.0-flash"
+
 
 class LLMRouter:
     def __init__(self):
@@ -14,6 +17,7 @@ class LLMRouter:
         self.anthropic_key = config.get("anthropic_api_key", "")
         self.openai_key = config.get("openai_api_key", "")
         self.openai_model = config.get("openai_model", "gpt-4o-mini")
+        self.gemini_key = config.get("gemini_api_key", "")
 
     def available_providers(self) -> list[dict]:
         providers = [{"id": "ollama", "label": f"Ollama — {self.model}"}]
@@ -21,6 +25,8 @@ class LLMRouter:
             providers.append({"id": "claude", "label": "Claude — Haiku"})
         if self.openai_key:
             providers.append({"id": "openai", "label": f"OpenAI — {self.openai_model}"})
+        if self.gemini_key:
+            providers.append({"id": "gemini", "label": f"Gemini — {GEMINI_MODEL}"})
         return providers
 
     async def stream(
@@ -45,13 +51,17 @@ class LLMRouter:
         elif provider == "openai":
             async for token in self._stream_openai(messages):
                 yield token
+        elif provider == "gemini":
+            async for token in self._stream_gemini(messages):
+                yield token
         else:
-            raise ValueError(f"Unknown provider: {provider}")
+            async for token in self._stream_ollama(messages):
+                yield token
 
     async def complete(self, messages: list[dict]) -> str:
-        """Non-streaming completion using local Ollama. Used for extraction and briefing tasks."""
+        """Non-streaming completion using the configured default provider."""
         result = ""
-        async for token in self._stream_ollama(messages):
+        async for token in self.stream(messages):
             result += token
         return result.strip()
 
@@ -92,6 +102,22 @@ class LLMRouter:
         client = AsyncOpenAI(api_key=self.openai_key)
         stream = await client.chat.completions.create(
             model=self.openai_model,
+            messages=messages,
+            stream=True,
+        )
+        async for chunk in stream:
+            token = chunk.choices[0].delta.content
+            if token:
+                yield token
+
+    async def _stream_gemini(self, messages: list[dict]) -> AsyncGenerator[str, None]:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(
+            api_key=self.gemini_key,
+            base_url=GEMINI_BASE_URL,
+        )
+        stream = await client.chat.completions.create(
+            model=GEMINI_MODEL,
             messages=messages,
             stream=True,
         )
