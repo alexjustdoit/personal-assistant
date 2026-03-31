@@ -537,17 +537,21 @@ async function loadProviders() {
   try {
     const res = await fetch('/api/providers');
     const data = await res.json();
+    const saved = localStorage.getItem('selected_provider');
     providerSelect.innerHTML = '';
     for (const p of data.providers) {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.label;
-      if (p.id === data.default) opt.selected = true;
+      if ((saved && p.id === saved) || (!saved && p.id === data.default)) opt.selected = true;
       providerSelect.appendChild(opt);
     }
   } catch {
     providerSelect.innerHTML = '<option value="ollama">Ollama</option>';
   }
+  providerSelect.addEventListener('change', () => {
+    localStorage.setItem('selected_provider', providerSelect.value);
+  });
 }
 
 async function initVoice() {
