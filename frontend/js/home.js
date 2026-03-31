@@ -477,6 +477,33 @@ async function loadProviders() {
   }
 }
 
+// --- Calendar live refresh ---
+
+async function refreshCalendarTile() {
+  try {
+    const res = await fetch('/api/calendar/events');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // Only update if the briefing tiles are currently visible
+    const container = document.getElementById('briefing-tiles');
+    if (container.classList.contains('hidden')) return;
+
+    // Find and replace the calendar tile in the grid
+    const grid = container.querySelector('.grid');
+    if (!grid) return;
+    const tiles = grid.children;
+    if (tiles.length < 2) return;
+    const newTile = buildCalendarTile(data.events);
+    grid.replaceChild(newTile, tiles[1]);
+  } catch {
+    // Non-fatal — just skip this refresh cycle
+  }
+}
+
+const CALENDAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+setInterval(refreshCalendarTile, CALENDAR_REFRESH_MS);
+
 // --- Init ---
 
 setGreeting();

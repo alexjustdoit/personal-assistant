@@ -130,6 +130,13 @@ async def generate_briefing(request: Request):
     return await generate_on_demand_briefing(period, force=force, provider=provider)
 
 
+@app.get("/api/calendar/events")
+async def get_calendar_events():
+    from backend.services.calendar_service import calendar_service
+    events = await calendar_service.get_events()
+    return {"events": events}
+
+
 @app.get("/api/providers")
 async def get_providers():
     from backend.services.llm import llm_router
