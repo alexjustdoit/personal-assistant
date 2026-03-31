@@ -1,6 +1,9 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from backend.services.weather import weather_service
 from backend.services.rss_news import get_rss_articles
 from backend.services.calendar_service import calendar_service
@@ -82,6 +85,7 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str
             {"role": "system", "content": "You are a news briefing editor. Follow the output format exactly."},
             {"role": "user", "content": prompt},
         ])
+        logger.info("[briefing] %s raw response: %s", topic, response[:300])
         # Extract SUMMARY from response
         summary_lines = []
         in_summary = False
@@ -95,7 +99,8 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str
             elif in_summary and stripped:
                 summary_lines.append(stripped)
         return " ".join(summary_lines).strip()
-    except Exception:
+    except Exception as e:
+        logger.error("[briefing] %s synthesis failed: %s", topic, e)
         return ""
 
 
