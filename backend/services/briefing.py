@@ -1,7 +1,7 @@
+import asyncio
 import json
 from datetime import datetime
 from backend.services.weather import weather_service
-from backend.services.news import news_service
 from backend.services.rss_news import get_rss_articles
 from backend.services.calendar_service import calendar_service
 from backend.services.notifications import notification_service
@@ -48,85 +48,95 @@ async def collect_briefing_data(period: str = "morning") -> dict:
     return data
 
 
-def _parse_synthesis(response: str, topics: list[str]) -> dict[str, str]:
-    """Parse TOPIC/SUMMARY format into {topic: summary_text} dict."""
-    summaries: dict[str, str] = {}
-    current_topic: str | None = None
-    current_lines: list[str] = []
-
-    for line in response.splitlines():
-        line = line.strip()
-        if line.upper().startswith("TOPIC:"):
-            if current_topic is not None:
-                summaries[current_topic] = " ".join(current_lines).strip()
-            raw = line[6:].strip()
-            match = next((t for t in topics if t.lower() == raw.lower()), raw)
-            current_topic = match
-            current_lines = []
-        elif line.upper().startswith("SUMMARY:"):
-            current_lines = [line[8:].strip()]
-        elif current_topic is not None and line:
-            # Handle multi-line summaries
-            current_lines.append(line)
-
-    if current_topic is not None:
-        summaries[current_topic] = " ".join(current_lines).strip()
-
-    return summaries
+def _format_article_for_prompt(article: dict) -> str:
+    """Format a single article as a text block for the LLM prompt."""
+    lines = [f"• {article['title']} ({article['source']})"]
+    body = article.get("full_text") or article.get("description") or ""
+    if body:
+        lines.append(f"  {body.strip()}")
+    return "\n".join(lines)
 
 
-async def _synthesize_rss_news(topics: list[str], period: str) -> list[dict]:
+async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str:
     """
-    Fetch RSS headlines for each topic, then ask the LLM to write a
-    2-3 sentence synthesis per topic. Returns list of news tile dicts.
+    Single LLM call for one topic. Instructs the model to identify the
+    lead story first (chain-of-thought), then produce the summary.
+    Returns the summary text, or empty string on failure.
+    """
+    article_block = "\n\n".join(_format_article_for_prompt(a) for a in articles)
+
+    prompt = (
+        f"Today is {today}.\n\n"
+        f"Topic: {topic}\n\n"
+        f"Recent articles:\n{article_block}\n\n"
+        "Step 1 — Identify which story above is the most significant and why (one sentence).\n"
+        "Step 2 — Write a 2-3 sentence briefing summary focused on that story. "
+        "Be specific: reference actual events, people, numbers, or decisions mentioned. "
+        "Do not invent facts.\n\n"
+        "LEAD: <one sentence identifying the most important story>\n"
+        "SUMMARY: <2-3 sentence briefing>"
+    )
+
+    try:
+        response = await llm_router.complete([
+            {"role": "system", "content": "You are a news briefing editor. Follow the output format exactly."},
+            {"role": "user", "content": prompt},
+        ])
+        # Extract SUMMARY from response
+        summary_lines = []
+        in_summary = False
+        for line in response.splitlines():
+            stripped = line.strip()
+            if stripped.upper().startswith("SUMMARY:"):
+                in_summary = True
+                rest = stripped[8:].strip()
+                if rest:
+                    summary_lines.append(rest)
+            elif in_summary and stripped:
+                summary_lines.append(stripped)
+        return " ".join(summary_lines).strip()
+    except Exception:
+        return ""
+
+
+async def _synthesize_rss_news(topics: list[str]) -> list[dict]:
+    """
+    Fetch RSS articles for all topics, enrich with full text, then run
+    per-topic LLM synthesis calls in parallel.
+    Returns list of news tile dicts ready for the frontend.
     """
     raw_articles = await get_rss_articles(topics)
     if not raw_articles:
         return []
 
-    # Group by topic, preserving order
+    # Group by topic, preserving config order
     by_topic: dict[str, list[dict]] = {}
+    for topic in topics:
+        by_topic[topic] = []
     for a in raw_articles:
-        by_topic.setdefault(a["topic"], []).append(a)
+        if a["topic"] in by_topic:
+            by_topic[a["topic"]].append(a)
 
-    topic_blocks = []
-    for topic, articles in by_topic.items():
-        lines = [f"TOPIC: {topic}"]
-        for a in articles:
-            if a.get("description"):
-                lines.append(f"  - {a['title']} ({a['source']}): {a['description']}")
-            else:
-                lines.append(f"  - {a['title']} ({a['source']})")
-        topic_blocks.append("\n".join(lines))
+    # Drop topics that got no articles
+    by_topic = {t: arts for t, arts in by_topic.items() if arts}
+    if not by_topic:
+        return []
 
-    prompt = (
-        "You are a news briefing writer. For each topic below, write 2-3 sentences "
-        "summarizing the most notable recent developments based on the headlines provided. "
-        "Be specific — reference actual events, trends, or people mentioned. "
-        "Do not invent facts beyond what the headlines imply.\n\n"
-        "Reply in exactly this format for each topic (no extra text):\n"
-        "TOPIC: <name>\n"
-        "SUMMARY: <2-3 sentences>\n\n"
-        "---\n\n"
-        + "\n\n".join(topic_blocks)
-    )
+    today = datetime.utcnow().strftime("%A, %B %-d, %Y")  # e.g. "Monday, March 30, 2026"
 
-    try:
-        response = await llm_router.complete([
-            {"role": "system", "content": "You are a news briefing writer. Follow the output format exactly."},
-            {"role": "user", "content": prompt},
-        ])
-        summaries = _parse_synthesis(response, list(by_topic.keys()))
-    except Exception:
-        summaries = {}
+    # Parallel LLM calls — one per topic
+    synthesis_tasks = [
+        _synthesize_topic(topic, articles, today)
+        for topic, articles in by_topic.items()
+    ]
+    summaries = await asyncio.gather(*synthesis_tasks)
 
     result = []
-    for topic, articles in by_topic.items():
-        # Deduplicate sources, keep up to 3
+    for (topic, articles), summary in zip(by_topic.items(), summaries):
         sources = list(dict.fromkeys(a["source"] for a in articles))[:3]
         result.append({
             "topic": topic,
-            "summary": summaries.get(topic, ""),
+            "summary": summary,
             "sources": sources,
         })
 
@@ -134,20 +144,15 @@ async def _synthesize_rss_news(topics: list[str], period: str) -> list[dict]:
 
 
 def _build_summary(data: dict, news_tiles: list[dict]) -> str:
-    """
-    Compose the summary card text from weather + first sentence of top news summaries.
-    """
+    """Compose the summary card from weather + first sentence of top news summaries."""
     parts = []
     if data.get("weather"):
         w = data["weather"]
         parts.append(f"{w['description']} in {w['city']}, {w['temp']}{w['unit']}")
     for tile in news_tiles[:2]:
-        summary = tile.get("summary", "")
-        if summary:
-            # Take just the first sentence
-            first = summary.split(".")[0].strip()
-            if first:
-                parts.append(first)
+        first = (tile.get("summary") or "").split(".")[0].strip()
+        if first:
+            parts.append(first)
     return "  ·  ".join(parts)
 
 
@@ -166,12 +171,9 @@ async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
     data = await collect_briefing_data(period)
 
     topics = config.get("news", {}).get("topics", [])
-    if topics:
-        data["news"] = await _synthesize_rss_news(topics, period)
-    else:
-        data["news"] = []
-
+    data["news"] = await _synthesize_rss_news(topics) if topics else []
     data["summary"] = _build_summary(data, data["news"])
+
     memory_service.save_briefing(json.dumps(data))
     return data
 
@@ -181,15 +183,15 @@ async def generate_and_send_briefing():
     data = await collect_briefing_data("morning")
 
     topics = config.get("news", {}).get("topics", [])
-    if topics:
-        data["news"] = await _synthesize_rss_news(topics, "morning")
-    else:
-        data["news"] = []
+    data["news"] = await _synthesize_rss_news(topics) if topics else []
 
     sections = []
     if data.get("weather"):
         w = data["weather"]
-        sections.append(f"Weather: {w['description']}, {w['temp']}{w['unit']} (feels like {w['feels_like']}{w['unit']}) in {w['city']}")
+        sections.append(
+            f"Weather: {w['description']}, {w['temp']}{w['unit']} "
+            f"(feels like {w['feels_like']}{w['unit']}) in {w['city']}"
+        )
 
     if data.get("events"):
         lines = "\n".join(f"  - {e['start']}: {e['title']}" for e in data["events"])
@@ -215,12 +217,12 @@ async def generate_and_send_briefing():
         return
 
     data_block = "\n\n".join(sections)
-    prompt = f"""{PERIOD_INSTRUCTION["morning"]} Write a concise, conversational paragraph — not a list.
-
-Data:
-{data_block}
-
-Write the morning briefing:"""
+    today = datetime.utcnow().strftime("%A, %B %-d, %Y")
+    prompt = (
+        f"Today is {today}. {PERIOD_INSTRUCTION['morning']} "
+        "Write a concise, conversational paragraph — not a list.\n\n"
+        f"Data:\n{data_block}\n\nWrite the morning briefing:"
+    )
 
     briefing_text = await llm_router.complete([
         {"role": "system", "content": PERIOD_SYSTEM["morning"]},
@@ -228,8 +230,4 @@ Write the morning briefing:"""
     ])
 
     memory_service.save_briefing(json.dumps(data))
-
-    await notification_service.send(
-        title="Good morning!",
-        body=briefing_text,
-    )
+    await notification_service.send(title="Good morning!", body=briefing_text)

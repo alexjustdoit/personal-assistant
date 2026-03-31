@@ -1,7 +1,8 @@
 import asyncio
+import re
 import feedparser
 import httpx
-from datetime import datetime, timezone
+import trafilatura
 
 
 # Curated RSS feeds grouped by topic keyword.
@@ -13,7 +14,7 @@ FEED_LIBRARY: dict[str, list[str]] = {
         "https://techcrunch.com/feed/",
     ],
     "politics": [
-        "https://feeds.npr.org/1014/rss.xml",           # NPR Politics
+        "https://feeds.npr.org/1014/rss.xml",            # NPR Politics
         "https://feeds.bbci.co.uk/news/politics/rss.xml",
         "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml",
     ],
@@ -23,7 +24,7 @@ FEED_LIBRARY: dict[str, list[str]] = {
         "https://mynorthwest.com/feed/",
     ],
     "business": [
-        "https://feeds.npr.org/1006/rss.xml",           # NPR Business
+        "https://feeds.npr.org/1006/rss.xml",            # NPR Business
         "https://feeds.bbci.co.uk/news/business/rss.xml",
     ],
     "science": [
@@ -31,21 +32,25 @@ FEED_LIBRARY: dict[str, list[str]] = {
         "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
     ],
     "health": [
-        "https://feeds.npr.org/1128/rss.xml",           # NPR Health
+        "https://feeds.npr.org/1128/rss.xml",            # NPR Health
         "https://feeds.bbci.co.uk/news/health/rss.xml",
     ],
     "world": [
         "https://feeds.bbci.co.uk/news/world/rss.xml",
-        "https://feeds.npr.org/1004/rss.xml",           # NPR World
+        "https://feeds.npr.org/1004/rss.xml",            # NPR World
     ],
     # Fallback — used when no keyword matches
     "_general": [
         "https://feeds.bbci.co.uk/news/rss.xml",
-        "https://feeds.npr.org/1001/rss.xml",           # NPR Top Stories
+        "https://feeds.npr.org/1001/rss.xml",            # NPR Top Stories
     ],
 }
 
 MAX_ARTICLES_PER_FEED = 5
+MAX_SCRAPE_PER_TOPIC = 3   # how many articles per topic to scrape for full text
+SCRAPE_TEXT_LIMIT = 1500   # chars of article body to pass to the LLM
+
+_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; HomeAssistant/1.0)"}
 
 
 def _feeds_for_topic(topic: str) -> list[str]:
@@ -58,59 +63,102 @@ def _feeds_for_topic(topic: str) -> list[str]:
     return FEED_LIBRARY["_general"]
 
 
+def _strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
 async def _fetch_feed(client: httpx.AsyncClient, url: str, topic: str) -> list[dict]:
-    """Fetch and parse a single RSS feed, returning a list of article dicts."""
+    """Fetch and parse a single RSS feed, returning article dicts with URLs."""
     try:
         resp = await client.get(url, timeout=10, follow_redirects=True)
         resp.raise_for_status()
         feed = feedparser.parse(resp.text)
-        articles = []
-        # Derive a clean source name from the feed title or URL
         source = (feed.feed.get("title") or url).split(" - ")[0].strip()
+        articles = []
         for entry in feed.entries[:MAX_ARTICLES_PER_FEED]:
             title = entry.get("title", "").strip()
-            description = (entry.get("summary") or entry.get("description") or "").strip()
-            # Strip any HTML tags from description
-            import re
-            description = re.sub(r"<[^>]+>", "", description)[:300].strip()
+            article_url = entry.get("link", "").strip()
+            description = _strip_html(
+                entry.get("summary") or entry.get("description") or ""
+            )[:400]
             if not title:
                 continue
             articles.append({
                 "topic": topic,
                 "title": title,
-                "description": description,
+                "url": article_url,
                 "source": source,
+                "description": description,
+                "full_text": "",   # populated by enrich_with_full_text()
             })
         return articles
     except Exception:
         return []
 
 
+async def _scrape_article(client: httpx.AsyncClient, article: dict) -> dict:
+    """
+    Fetch article URL and extract full text with trafilatura.
+    Falls back silently — article description is the backup.
+    """
+    url = article.get("url", "")
+    if not url:
+        return article
+    try:
+        resp = await client.get(url, timeout=10, follow_redirects=True)
+        resp.raise_for_status()
+        text = trafilatura.extract(
+            resp.text,
+            include_comments=False,
+            include_tables=False,
+            no_fallback=False,
+        )
+        if text and len(text) > 150:
+            article = dict(article)
+            article["full_text"] = text[:SCRAPE_TEXT_LIMIT]
+    except Exception:
+        pass
+    return article
+
+
 async def get_rss_articles(topics: list[str]) -> list[dict]:
     """
-    Fetch RSS headlines for each topic in parallel.
-    Returns list of {topic, title, description, source} dicts.
+    Fetch RSS headlines for each topic in parallel, then scrape full text
+    for the top articles per topic. Returns enriched article dicts.
     """
     if not topics:
         return []
 
-    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0 (compatible; HomeAssistant/1.0)"}) as client:
-        tasks = []
-        task_topics = []
+    # --- Phase 1: fetch all feeds in parallel ---
+    async with httpx.AsyncClient(headers=_HEADERS) as client:
+        feed_tasks = []
         seen_feeds: set[str] = set()
-
         for topic in topics[:5]:
-            feeds = _feeds_for_topic(topic)
-            for feed_url in feeds:
+            for feed_url in _feeds_for_topic(topic):
                 if feed_url in seen_feeds:
                     continue
                 seen_feeds.add(feed_url)
-                tasks.append(_fetch_feed(client, feed_url, topic))
-                task_topics.append(topic)
+                feed_tasks.append(_fetch_feed(client, feed_url, topic))
 
-        results = await asyncio.gather(*tasks)
+        feed_results = await asyncio.gather(*feed_tasks)
 
-    articles = []
-    for result in results:
-        articles.extend(result)
-    return articles
+    raw_articles: list[dict] = []
+    for result in feed_results:
+        raw_articles.extend(result)
+
+    # --- Phase 2: scrape full text for top N per topic in parallel ---
+    # Group and limit how many we'll scrape
+    by_topic: dict[str, list[dict]] = {}
+    for a in raw_articles:
+        by_topic.setdefault(a["topic"], []).append(a)
+
+    to_scrape: list[dict] = []
+    no_scrape: list[dict] = []
+    for topic_articles in by_topic.values():
+        to_scrape.extend(topic_articles[:MAX_SCRAPE_PER_TOPIC])
+        no_scrape.extend(topic_articles[MAX_SCRAPE_PER_TOPIC:])
+
+    async with httpx.AsyncClient(headers=_HEADERS) as client:
+        scraped = await asyncio.gather(*[_scrape_article(client, a) for a in to_scrape])
+
+    return list(scraped) + no_scrape
