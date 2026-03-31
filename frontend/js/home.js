@@ -177,35 +177,94 @@ function buildCalendarTile(events) {
 
   const header = document.createElement('div');
   header.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3';
-  header.textContent = "Today's Calendar";
+  header.textContent = "Calendar";
   tile.appendChild(header);
 
   if (events.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'text-gray-600 text-sm';
-    empty.textContent = 'No events today';
+    const empty = document.createElement('div');
+    empty.className = 'flex flex-col items-center justify-center py-3 text-center gap-1';
+
+    const graphic = document.createElement('div');
+    graphic.className = 'text-2xl mb-1';
+    graphic.textContent = '✨';
+
+    const msg = document.createElement('p');
+    msg.className = 'text-sm text-gray-300 font-medium';
+    msg.textContent = 'All clear!';
+
+    const sub = document.createElement('p');
+    sub.className = 'text-xs text-gray-600';
+    const hour = new Date().getHours();
+    sub.textContent = hour >= 18
+      ? 'Nothing left today or tomorrow morning'
+      : 'Nothing left on your schedule today';
+
+    empty.appendChild(graphic);
+    empty.appendChild(msg);
+    empty.appendChild(sub);
     tile.appendChild(empty);
     return tile;
   }
 
   const list = document.createElement('div');
   list.className = 'space-y-2';
+
+  let lastWasTomorrow = false;
   for (const event of events) {
+    // Insert a subtle divider before the first tomorrow event
+    if (event.status === 'tomorrow' && !lastWasTomorrow) {
+      const divider = document.createElement('div');
+      divider.className = 'flex items-center gap-2 pt-1';
+      const line = document.createElement('div');
+      line.className = 'flex-1 h-px bg-gray-800';
+      const label = document.createElement('span');
+      label.className = 'text-xs text-gray-700 flex-shrink-0';
+      label.textContent = 'Tomorrow';
+      divider.appendChild(line);
+      divider.appendChild(label);
+      list.appendChild(divider);
+      lastWasTomorrow = true;
+    }
+
     const row = document.createElement('div');
-    row.className = 'flex items-baseline gap-3';
 
-    const time = document.createElement('span');
-    time.className = 'text-xs text-indigo-400 font-medium flex-shrink-0 w-16';
-    time.textContent = event.start;
+    if (event.status === 'current') {
+      row.className = 'flex items-center gap-3 px-2 py-1 -mx-2 bg-indigo-600/10 rounded-lg border border-indigo-600/20';
+    } else {
+      row.className = 'flex items-baseline gap-3';
+    }
 
-    const title = document.createElement('span');
-    title.className = 'text-sm text-gray-200 truncate';
-    title.textContent = event.title;
+    const timeEl = document.createElement('span');
+    timeEl.className = 'text-xs font-medium flex-shrink-0 w-16 ' + {
+      past:     'text-gray-600',
+      current:  'text-indigo-400',
+      upcoming: 'text-indigo-400',
+      tomorrow: 'text-gray-500',
+    }[event.status];
+    timeEl.textContent = event.start;
 
-    row.appendChild(time);
-    row.appendChild(title);
+    const titleEl = document.createElement('span');
+    titleEl.className = 'text-sm truncate ' + {
+      past:     'text-gray-600 line-through',
+      current:  'text-indigo-200 font-medium',
+      upcoming: 'text-gray-200',
+      tomorrow: 'text-gray-400',
+    }[event.status];
+    titleEl.textContent = event.title;
+
+    row.appendChild(timeEl);
+    row.appendChild(titleEl);
+
+    if (event.status === 'current') {
+      const badge = document.createElement('span');
+      badge.className = 'text-xs text-indigo-400 font-medium ml-auto flex-shrink-0';
+      badge.textContent = 'Now';
+      row.appendChild(badge);
+    }
+
     list.appendChild(row);
   }
+
   tile.appendChild(list);
   return tile;
 }
@@ -328,8 +387,9 @@ function renderBriefing(data) {
     container.appendChild(summaryCard);
   }
 
-  // Top row: weather + calendar side by side
-  if (hasWeather && data.events !== undefined) {
+  // Top row: weather + calendar always side by side
+  const hasCalendar = data.events !== undefined;
+  if (hasWeather && hasCalendar) {
     const row = document.createElement('div');
     row.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
     row.appendChild(buildWeatherTile(data.weather));
@@ -337,7 +397,7 @@ function renderBriefing(data) {
     container.appendChild(row);
   } else if (hasWeather) {
     container.appendChild(buildWeatherTile(data.weather));
-  } else if (data.events !== undefined) {
+  } else if (hasCalendar) {
     container.appendChild(buildCalendarTile(data.events));
   }
 
