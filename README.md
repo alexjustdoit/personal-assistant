@@ -159,6 +159,29 @@ personal-assistant/
 └── requirements.txt
 ```
 
+## Data & Resetting
+
+All runtime data lives in `data/` (gitignored — never pushed to the repo).
+
+| Path | Contains |
+|---|---|
+| `data/conversations.db` | Chat history + reminders |
+| `data/chroma/` | Personal memory (ChromaDB vectors) |
+| `data/logs/` | Service logs |
+
+**Full reset:**
+```powershell
+rmdir /s /q data
+```
+
+**Reset selectively:**
+```powershell
+del data\conversations.db     # clears chat history and reminders only
+rmdir /s /q data\chroma       # clears personal memory only
+```
+
+The app recreates `data/` automatically on next start.
+
 ## Roadmap
 
 - [x] Phase 1 — Chat UI, streaming, LLM routing
