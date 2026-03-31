@@ -173,6 +173,7 @@ function buildWeatherTile(weather) {
 
 function buildCalendarTile(events) {
   const tile = document.createElement('div');
+  tile.id = 'calendar-tile';
   tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
 
   const header = document.createElement('div');
@@ -228,34 +229,36 @@ function buildCalendarTile(events) {
 
     const row = document.createElement('div');
 
-    if (event.status === 'current') {
+    const status = event.status || 'upcoming';
+
+    if (status === 'current') {
       row.className = 'flex items-center gap-3 px-2 py-1 -mx-2 bg-indigo-600/10 rounded-lg border border-indigo-600/20';
     } else {
       row.className = 'flex items-baseline gap-3';
     }
 
     const timeEl = document.createElement('span');
-    timeEl.className = 'text-xs font-medium flex-shrink-0 w-16 ' + {
+    timeEl.className = 'text-xs font-medium flex-shrink-0 w-16 ' + ({
       past:     'text-gray-600',
       current:  'text-indigo-400',
       upcoming: 'text-indigo-400',
       tomorrow: 'text-gray-500',
-    }[event.status];
+    }[status] || 'text-indigo-400');
     timeEl.textContent = event.start;
 
     const titleEl = document.createElement('span');
-    titleEl.className = 'text-sm truncate ' + {
+    titleEl.className = 'text-sm truncate ' + ({
       past:     'text-gray-600 line-through',
       current:  'text-indigo-200 font-medium',
       upcoming: 'text-gray-200',
       tomorrow: 'text-gray-400',
-    }[event.status];
+    }[status] || 'text-gray-200');
     titleEl.textContent = event.title;
 
     row.appendChild(timeEl);
     row.appendChild(titleEl);
 
-    if (event.status === 'current') {
+    if (status === 'current') {
       const badge = document.createElement('span');
       badge.className = 'text-xs text-indigo-400 font-medium ml-auto flex-shrink-0';
       badge.textContent = 'Now';
@@ -453,6 +456,8 @@ async function loadBriefing(force = false) {
 
   icon.classList.remove('spin');
   renderBriefing(data);
+  // Always refresh calendar from live endpoint after render — briefing may be cached
+  refreshCalendarTile();
 }
 
 document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));
@@ -484,20 +489,12 @@ async function refreshCalendarTile() {
     const res = await fetch('/api/calendar/events');
     if (!res.ok) return;
     const data = await res.json();
-
-    // Only update if the briefing tiles are currently visible
-    const container = document.getElementById('briefing-tiles');
-    if (container.classList.contains('hidden')) return;
-
-    // Find and replace the calendar tile in the grid
-    const grid = container.querySelector('.grid');
-    if (!grid) return;
-    const tiles = grid.children;
-    if (tiles.length < 2) return;
+    const existing = document.getElementById('calendar-tile');
+    if (!existing) return;
     const newTile = buildCalendarTile(data.events);
-    grid.replaceChild(newTile, tiles[1]);
+    existing.parentNode.replaceChild(newTile, existing);
   } catch {
-    // Non-fatal — just skip this refresh cycle
+    // Non-fatal — skip this refresh cycle
   }
 }
 
