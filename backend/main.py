@@ -170,7 +170,7 @@ async def get_providers():
     from backend.services.llm import llm_router
     return {
         "providers": llm_router.available_providers(),
-        "default": llm_router.provider,
+        "default": llm_router.default_provider_id,
     }
 
 

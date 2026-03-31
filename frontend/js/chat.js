@@ -9,21 +9,44 @@ function getSessionId() {
   return id;
 }
 
-function newChat() {
-  const id = crypto.randomUUID();
+let SESSION_ID = getSessionId();
+let socket = null;
+let isStreaming = false;
+
+function switchToSession(id) {
+  if (isStreaming) {
+    if (!confirm('A response is in progress and will be lost. Switch anyway?')) return;
+  }
+  // Close existing socket without triggering auto-reconnect
+  if (socket) {
+    socket.onclose = null;
+    socket.close();
+    socket = null;
+  }
+  SESSION_ID = id;
   localStorage.setItem('active_session_id', id);
-  location.reload();
+  isStreaming = false;
+  currentBubble = null;
+  currentText = '';
+  messagesEl.innerHTML = '';
+  welcomeEl.classList.remove('hidden');
+  messagesEl.classList.add('hidden');
+  chatTitle.textContent = 'Personal Assistant';
+  resetTTS();
+  setInputEnabled(true);
+  loadHistory();
+  connect();
+  loadChatList();
+}
+
+function newChat() {
+  switchToSession(crypto.randomUUID());
 }
 
 function switchChat(sessionId) {
-  localStorage.setItem('active_session_id', sessionId);
-  location.reload();
+  if (sessionId === SESSION_ID) return;
+  switchToSession(sessionId);
 }
-
-const SESSION_ID = getSessionId();
-const WS_URL = `ws://${location.host}/ws/chat?session_id=${SESSION_ID}`;
-let socket = null;
-let isStreaming = false;
 
 // --- DOM refs ---
 
@@ -142,7 +165,8 @@ async function loadChatList() {
 // --- WebSocket ---
 
 function connect() {
-  socket = new WebSocket(WS_URL);
+  const wsUrl = `ws://${location.host}/ws/chat?session_id=${SESSION_ID}`;
+  socket = new WebSocket(wsUrl);
 
   socket.onopen = () => {
     statusDot.classList.replace('bg-red-500', 'bg-green-500');

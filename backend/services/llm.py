@@ -17,6 +17,11 @@ class LLMRouter:
         self.model = llm_cfg.get("model", "phi4")
         self.ollama_url = llm_cfg.get("ollama_url", "http://localhost:11434")
         self.quality_model = llm_cfg.get("quality_model", "ollama")
+        # Multiple local Ollama models (for comparison/testing). Falls back to [model].
+        configured_models = llm_cfg.get("ollama_models", [])
+        self.ollama_models: list[str] = configured_models if configured_models else [self.model]
+        if self.model not in self.ollama_models:
+            self.ollama_models.insert(0, self.model)
         # briefing_provider overrides provider for briefing synthesis only
         self.briefing_provider = llm_cfg.get("briefing_provider", "") or self.provider
         self.anthropic_key = config.get("anthropic_api_key", "")
@@ -25,8 +30,15 @@ class LLMRouter:
         self.gemini_key = config.get("gemini_api_key", "")
         self.groq_key = config.get("groq_api_key", "")
 
+    @property
+    def default_provider_id(self) -> str:
+        """The provider ID for the default Ollama model, matching available_providers() format."""
+        if self.provider == "ollama":
+            return f"ollama/{self.model}"
+        return self.provider
+
     def available_providers(self) -> list[dict]:
-        providers = [{"id": "ollama", "label": f"Ollama — {self.model}"}]
+        providers = [{"id": f"ollama/{m}", "label": f"Ollama — {m}"} for m in self.ollama_models]
         if self.anthropic_key:
             providers.append({"id": "claude", "label": "Claude — Haiku"})
         if self.openai_key:
@@ -50,8 +62,9 @@ class LLMRouter:
         else:
             provider = self.provider
 
-        if provider == "ollama":
-            async for token in self._stream_ollama(messages):
+        if provider == "ollama" or provider.startswith("ollama/"):
+            model = provider.split("/", 1)[1] if "/" in provider else self.model
+            async for token in self._stream_ollama(messages, model):
                 yield token
         elif provider == "claude":
             async for token in self._stream_claude(messages):
@@ -114,13 +127,14 @@ class LLMRouter:
             result += token
         return result.strip()
 
-    async def _stream_ollama(self, messages: list[dict]) -> AsyncGenerator[str, None]:
+    async def _stream_ollama(self, messages: list[dict], model: str | None = None) -> AsyncGenerator[str, None]:
         import ollama
         client = ollama.AsyncClient(host=self.ollama_url)
         async for chunk in await client.chat(
-            model=self.model,
+            model=model or self.model,
             messages=messages,
             stream=True,
+            options={"num_predict": 400},
         ):
             token = chunk["message"]["content"]
             if token:
