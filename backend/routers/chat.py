@@ -36,6 +36,19 @@ _TODOIST_PROMPT = (
     'or {{"action": null}}'
 )
 
+_GOVEE_SYSTEM = "You detect smart home / light control intents. Reply with JSON only."
+_GOVEE_PROMPT = (
+    "Does this message want to control a smart home device (lights, lamp, etc.)?\n"
+    "Available devices: {devices}\n"
+    'Message: "{msg}"\n'
+    'JSON: {{"action": "on"|"off"|"brightness"|"color"|"color_temp", '
+    '"device": "device name or all", '
+    '"brightness": 0-100 or null, '
+    '"color": "color name or r,g,b or null", '
+    '"color_temp": kelvin or null}} '
+    'or {{"action": null}}'
+)
+
 
 async def extract_reminder(text: str) -> dict | None:
     response = await llm_router.complete([
@@ -91,6 +104,25 @@ async def _detect_todoist(message: str) -> dict | None:
         response = await llm_router.complete([
             {"role": "system", "content": _TODOIST_SYSTEM},
             {"role": "user", "content": _TODOIST_PROMPT.format(msg=message)},
+        ])
+        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            if data.get("action"):
+                return data
+    except Exception:
+        pass
+    return None
+
+
+async def _detect_govee(message: str) -> dict | None:
+    from backend.services.govee import get_devices
+    devices = await get_devices()
+    device_names = ", ".join(d.get("deviceName", "?") for d in devices) or "none"
+    try:
+        response = await llm_router.complete([
+            {"role": "system", "content": _GOVEE_SYSTEM},
+            {"role": "user", "content": _GOVEE_PROMPT.format(msg=message, devices=device_names)},
         ])
         m = re.search(r"\{.*?\}", response, re.DOTALL)
         if m:
@@ -160,21 +192,27 @@ async def chat_websocket(websocket: WebSocket):
             # --- Parallel: search + todoist detect ---
             from backend.services.search import search_enabled, web_search
             from backend.services.todoist import todoist_enabled, get_tasks, add_task, complete_task, find_task_by_name
+            from backend.services.govee import govee_enabled, execute_govee_intent
 
             detect_tasks = {}
             if user_message and search_enabled():
                 detect_tasks["search"] = asyncio.create_task(_detect_search(user_message))
             if user_message and todoist_enabled():
                 detect_tasks["todoist"] = asyncio.create_task(_detect_todoist(user_message))
+            if user_message and govee_enabled():
+                detect_tasks["govee"] = asyncio.create_task(_detect_govee(user_message))
 
             search_result = None
             todoist_result = None
+            govee_result = None
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
                     search_result = detect_tasks["search"].result() if not detect_tasks["search"].exception() else (False, None)
                 if "todoist" in detect_tasks:
                     todoist_result = detect_tasks["todoist"].result() if not detect_tasks["todoist"].exception() else None
+                if "govee" in detect_tasks:
+                    govee_result = detect_tasks["govee"].result() if not detect_tasks["govee"].exception() else None
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -217,6 +255,11 @@ async def chat_websocket(websocket: WebSocket):
                             system_prompt += '\n\n[Todoist] Failed to complete the task. Apologize briefly.'
                     else:
                         system_prompt += f'\n\n[Todoist] Could not find a task matching "{task_name}". Tell the user.'
+
+            # --- Govee smart home ---
+            if govee_result:
+                result_text = await execute_govee_intent(govee_result)
+                system_prompt += f"\n\n{result_text}"
 
             # --- Save & build messages ---
             if user_message:

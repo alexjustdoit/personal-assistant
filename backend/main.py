@@ -142,6 +142,15 @@ async def get_calendar_events():
     return {"events": events}
 
 
+@app.get("/api/govee/devices")
+async def get_govee_devices():
+    from backend.services.govee import get_devices, govee_enabled
+    if not govee_enabled():
+        return {"enabled": False, "devices": []}
+    devices = await get_devices()
+    return {"enabled": True, "devices": [{"name": d.get("deviceName", "?"), "model": d.get("model", "?"), "controllable": d.get("controllable", False)} for d in devices]}
+
+
 @app.get("/api/todoist/tasks")
 async def get_todoist_tasks():
     from backend.services.todoist import get_tasks, todoist_enabled

@@ -8,7 +8,8 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Govee lights / smart home control** — Voice and chat control of Govee devices via Govee Developer API
+- **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
+- **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
 - **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
 - **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
 - **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
@@ -39,6 +40,24 @@ Allow the assistant to update certain config values (e.g. news topics) through c
 ### Portfolio / showcase
 - `DEMO.md` with screenshots and feature walkthrough
 - Demo video or GIF showing voice input, morning briefing, and smart home control
+
+---
+
+## [0.6] — 2026-03-31
+
+### Added — Govee smart home control
+- `backend/services/govee.py` — Govee Developer API v1 client
+  - Device list fetched once and cached in memory for 1 hour (conserves the ~100 req/day free tier limit)
+  - `execute_govee_intent()` handles on, off, brightness, color, color_temp commands
+  - `COLOR_MAP` maps natural language color names to RGB (red, blue, orange, purple, warm white, etc.)
+  - `find_devices()` matches by partial device name; "all" targets every device
+  - Graceful fallback if API unreachable — returns stale cache
+- Chat integration: `_detect_govee()` runs in parallel with search and Todoist detection
+  - Device names injected into the detect prompt so the LLM can match user phrasing to real devices
+  - Supports: "turn on the lamp", "set the bedroom light to blue", "dim all lights to 30%", "warm white"
+- `GET /api/govee/devices` endpoint — lists device names, models, controllable status
+- Setup wizard: Govee API key field
+- `config.yaml.example`: `govee.api_key` field added
 
 ---
 
