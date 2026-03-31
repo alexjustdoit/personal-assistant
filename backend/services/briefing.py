@@ -184,16 +184,17 @@ async def _generate_summary(data: dict, period: str) -> str:
         return ""
 
 
-async def generate_on_demand_briefing(period: str) -> dict:
+async def generate_on_demand_briefing(period: str, force: bool = False) -> dict:
     """Return a structured briefing dict. Uses cached version if < 6 hours old."""
-    cached = memory_service.get_recent_briefing(max_age_hours=6)
-    if cached:
-        try:
-            parsed = json.loads(cached["content"])
-            if "events" in parsed and "period" in parsed:
-                return parsed
-        except (json.JSONDecodeError, TypeError):
-            pass
+    if not force:
+        cached = memory_service.get_recent_briefing(max_age_hours=6)
+        if cached:
+            try:
+                parsed = json.loads(cached["content"])
+                if "events" in parsed and "period" in parsed:
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
 
     data = await collect_briefing_data(period)
     if data.get("news"):

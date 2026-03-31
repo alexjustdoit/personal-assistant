@@ -285,16 +285,25 @@ function renderBriefing(data) {
 
 // --- Load briefing ---
 
-async function loadBriefing() {
+async function loadBriefing(force = false) {
   const period = getPeriod();
   document.getElementById('briefing-label').textContent = PERIOD_LABELS[period];
+
+  // Show loading state
+  document.getElementById('briefing-tiles').classList.add('hidden');
+  document.getElementById('briefing-error').classList.add('hidden');
+  document.getElementById('briefing-loading').classList.remove('hidden');
+
+  // Spin the refresh icon
+  const icon = document.getElementById('refresh-icon');
+  icon.classList.add('spin');
 
   let data;
   try {
     const res = await fetch('/api/briefing/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ period }),
+      body: JSON.stringify({ period, force }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
@@ -302,12 +311,15 @@ async function loadBriefing() {
     console.error('[briefing] fetch failed:', err);
     document.getElementById('briefing-loading').classList.add('hidden');
     document.getElementById('briefing-error').classList.remove('hidden');
+    icon.classList.remove('spin');
     return;
   }
 
-  console.log('[briefing] data received:', data);
+  icon.classList.remove('spin');
   renderBriefing(data);
 }
+
+document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));
 
 // --- Chat list ---
 
