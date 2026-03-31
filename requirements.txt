@@ -16,7 +16,7 @@ python-multipart
 # Phase 3 — Memory
 chromadb
 # Phase 4 — Proactive layer
-APScheduler==3.10.4
+APScheduler>=3.10,<4
 pytz
 dateparser
 icalendar
