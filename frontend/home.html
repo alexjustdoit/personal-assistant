@@ -10,7 +10,7 @@
 </head>
 <body class="dark min-h-screen bg-gray-950 text-gray-100">
 
-  <div class="max-w-2xl mx-auto px-6 py-12">
+  <div class="max-w-3xl mx-auto px-6 py-12">
 
     <!-- Header -->
     <div class="flex items-start justify-between mb-10">
@@ -23,27 +23,27 @@
       </a>
     </div>
 
-    <!-- Briefing card -->
+    <!-- Briefing section -->
     <div class="mb-10">
-      <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3" id="briefing-label">Briefing</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider" id="briefing-label">Briefing</h2>
+      </div>
 
       <!-- Loading state -->
-      <div id="briefing-loading" class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-        <div class="flex items-center gap-3 text-gray-500 text-sm">
-          <div class="loading-dots"><span></span><span></span><span></span></div>
-          <span>Generating your briefing…</span>
+      <div id="briefing-loading">
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="h-28 bg-gray-900 border border-gray-800 rounded-2xl animate-pulse"></div>
+          <div class="h-28 bg-gray-900 border border-gray-800 rounded-2xl animate-pulse opacity-70"></div>
         </div>
+        <div class="h-20 bg-gray-900 border border-gray-800 rounded-2xl animate-pulse opacity-50"></div>
       </div>
 
-      <!-- Content -->
-      <div id="briefing-section" class="hidden bg-gray-900 border border-gray-800 rounded-2xl p-6">
-        <p id="briefing-text" class="text-gray-200 text-sm leading-relaxed"></p>
-        <p id="briefing-time" class="text-gray-600 text-xs mt-4"></p>
-      </div>
+      <!-- Tiles (populated by JS) -->
+      <div id="briefing-tiles" class="hidden space-y-3"></div>
 
-      <!-- Error state -->
+      <!-- Error -->
       <div id="briefing-error" class="hidden bg-gray-900/50 border border-gray-800/50 border-dashed rounded-2xl p-6 text-center">
-        <p class="text-gray-600 text-sm">Couldn't generate a briefing — check that Ollama is running.</p>
+        <p class="text-gray-600 text-sm">Couldn't load briefing — check that Ollama is running and services are configured.</p>
       </div>
     </div>
 

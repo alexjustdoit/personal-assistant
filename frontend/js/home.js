@@ -24,13 +24,255 @@ function setGreeting() {
   else if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
   else greeting = 'Good evening';
   document.getElementById('greeting').textContent = greeting;
-
   document.getElementById('date-line').textContent = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   });
 }
 
-// --- Briefing ---
+// --- Weather tile ---
+
+function weatherEmoji(description) {
+  const d = description.toLowerCase();
+  if (d.includes('thunderstorm')) return '⛈️';
+  if (d.includes('drizzle') || d.includes('shower')) return '🌦️';
+  if (d.includes('rain')) return '🌧️';
+  if (d.includes('snow')) return '❄️';
+  if (d.includes('sleet') || d.includes('ice')) return '🌨️';
+  if (d.includes('fog') || d.includes('mist') || d.includes('haze')) return '🌫️';
+  if (d.includes('overcast')) return '☁️';
+  if (d.includes('broken clouds') || d.includes('scattered')) return '⛅';
+  if (d.includes('few clouds') || d.includes('partly')) return '🌤️';
+  if (d.includes('clear')) return '☀️';
+  return '🌡️';
+}
+
+function buildWeatherTile(weather) {
+  const tile = document.createElement('div');
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-5';
+
+  const icon = document.createElement('div');
+  icon.className = 'text-5xl flex-shrink-0';
+  icon.textContent = weatherEmoji(weather.description);
+
+  const info = document.createElement('div');
+  info.className = 'min-w-0';
+
+  const temp = document.createElement('div');
+  temp.className = 'text-3xl font-semibold text-gray-100';
+  temp.textContent = `${weather.temp}${weather.unit}`;
+
+  const desc = document.createElement('div');
+  desc.className = 'text-gray-300 text-sm mt-0.5';
+  desc.textContent = weather.description;
+
+  const meta = document.createElement('div');
+  meta.className = 'text-gray-600 text-xs mt-1';
+  meta.textContent = `Feels like ${weather.feels_like}${weather.unit} · ${weather.humidity}% humidity · ${weather.city}`;
+
+  info.appendChild(temp);
+  info.appendChild(desc);
+  info.appendChild(meta);
+  tile.appendChild(icon);
+  tile.appendChild(info);
+  return tile;
+}
+
+// --- Calendar tile ---
+
+function buildCalendarTile(events) {
+  const tile = document.createElement('div');
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
+
+  const header = document.createElement('div');
+  header.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3';
+  header.textContent = "Today's Calendar";
+  tile.appendChild(header);
+
+  if (events.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'text-gray-600 text-sm';
+    empty.textContent = 'No events today';
+    tile.appendChild(empty);
+    return tile;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'space-y-2';
+  for (const event of events) {
+    const row = document.createElement('div');
+    row.className = 'flex items-baseline gap-3';
+
+    const time = document.createElement('span');
+    time.className = 'text-xs text-indigo-400 font-medium flex-shrink-0 w-16';
+    time.textContent = event.start;
+
+    const title = document.createElement('span');
+    title.className = 'text-sm text-gray-200 truncate';
+    title.textContent = event.title;
+
+    row.appendChild(time);
+    row.appendChild(title);
+    list.appendChild(row);
+  }
+  tile.appendChild(list);
+  return tile;
+}
+
+// --- Reminders tile ---
+
+function buildRemindersTile(reminders) {
+  const tile = document.createElement('div');
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
+
+  const header = document.createElement('div');
+  header.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3';
+  header.textContent = 'Reminders';
+  tile.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'space-y-2';
+  for (const r of reminders) {
+    const row = document.createElement('div');
+    row.className = 'flex items-baseline gap-2';
+
+    const dot = document.createElement('span');
+    dot.className = 'text-indigo-500 text-xs flex-shrink-0';
+    dot.textContent = '●';
+
+    const text = document.createElement('span');
+    text.className = 'text-sm text-gray-200';
+    text.textContent = r.text;
+
+    if (r.due_time) {
+      const due = document.createElement('span');
+      due.className = 'text-xs text-gray-600 ml-auto flex-shrink-0';
+      due.textContent = new Date(r.due_time + 'Z').toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      row.appendChild(dot);
+      row.appendChild(text);
+      row.appendChild(due);
+    } else {
+      row.appendChild(dot);
+      row.appendChild(text);
+    }
+    list.appendChild(row);
+  }
+  tile.appendChild(list);
+  return tile;
+}
+
+// --- News cards ---
+
+function buildNewsSection(articles) {
+  const wrapper = document.createElement('div');
+
+  const header = document.createElement('div');
+  header.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3';
+  header.textContent = 'News';
+  wrapper.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.className = 'space-y-2';
+
+  for (const article of articles) {
+    const card = document.createElement('a');
+    card.href = article.url;
+    card.target = '_blank';
+    card.rel = 'noopener noreferrer';
+    card.className = 'flex flex-col gap-1 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 hover:bg-gray-800/60 transition-all group';
+
+    const topRow = document.createElement('div');
+    topRow.className = 'flex items-center justify-between gap-2';
+
+    const topic = document.createElement('span');
+    topic.className = 'text-xs text-indigo-400 font-medium flex-shrink-0';
+    topic.textContent = article.topic;
+
+    const source = document.createElement('span');
+    source.className = 'text-xs text-gray-600 flex-shrink-0';
+    source.textContent = article.source;
+
+    topRow.appendChild(topic);
+    topRow.appendChild(source);
+
+    const title = document.createElement('div');
+    title.className = 'text-sm text-gray-200 font-medium group-hover:text-white transition-colors leading-snug';
+    title.textContent = article.title;
+
+    card.appendChild(topRow);
+    card.appendChild(title);
+
+    if (article.snippet) {
+      const snippet = document.createElement('div');
+      snippet.className = 'text-xs text-gray-500 leading-relaxed line-clamp-2';
+      snippet.textContent = article.snippet;
+      card.appendChild(snippet);
+    }
+
+    grid.appendChild(card);
+  }
+
+  wrapper.appendChild(grid);
+  return wrapper;
+}
+
+// --- Render briefing tiles ---
+
+function renderBriefing(data) {
+  const container = document.getElementById('briefing-tiles');
+  container.innerHTML = '';
+
+  const hasWeather = data.weather;
+  const hasEvents = data.events && data.events.length >= 0; // show even when empty
+  const hasNews = data.news && data.news.length > 0;
+  const hasReminders = data.reminders && data.reminders.length > 0;
+
+  const hasAnything = hasWeather || data.events !== undefined || hasNews || hasReminders;
+  if (!hasAnything) {
+    document.getElementById('briefing-loading').classList.add('hidden');
+    document.getElementById('briefing-error').classList.remove('hidden');
+    return;
+  }
+
+  // Top row: weather + calendar side by side (if both present), or full-width if only one
+  if (hasWeather && hasEvents) {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
+    row.appendChild(buildWeatherTile(data.weather));
+    row.appendChild(buildCalendarTile(data.events));
+    container.appendChild(row);
+  } else if (hasWeather) {
+    container.appendChild(buildWeatherTile(data.weather));
+  } else if (hasEvents) {
+    container.appendChild(buildCalendarTile(data.events));
+  }
+
+  // News
+  if (hasNews) {
+    container.appendChild(buildNewsSection(data.news));
+  }
+
+  // Reminders
+  if (hasReminders) {
+    container.appendChild(buildRemindersTile(data.reminders));
+  }
+
+  // Timestamp
+  if (data.generated_at) {
+    const ts = document.createElement('p');
+    ts.className = 'text-gray-700 text-xs mt-1';
+    const d = new Date(data.generated_at + (data.generated_at.endsWith('Z') ? '' : 'Z'));
+    ts.textContent = 'Updated ' + d.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
+    container.appendChild(ts);
+  }
+
+  document.getElementById('briefing-loading').classList.add('hidden');
+  container.classList.remove('hidden');
+}
+
+// --- Load briefing ---
 
 async function loadBriefing() {
   const period = getPeriod();
@@ -42,26 +284,9 @@ async function loadBriefing() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ period }),
     });
-
     if (!res.ok) throw new Error('Request failed');
     const data = await res.json();
-
-    document.getElementById('briefing-loading').classList.add('hidden');
-
-    if (data.content) {
-      document.getElementById('briefing-text').textContent = data.content;
-      if (data.generated_at) {
-        const d = new Date(data.generated_at + (data.generated_at.endsWith('Z') ? '' : 'Z'));
-        document.getElementById('briefing-time').textContent =
-          'Generated ' + d.toLocaleString('en-US', {
-            weekday: 'short', month: 'short', day: 'numeric',
-            hour: 'numeric', minute: '2-digit',
-          });
-      }
-      document.getElementById('briefing-section').classList.remove('hidden');
-    } else {
-      document.getElementById('briefing-error').classList.remove('hidden');
-    }
+    renderBriefing(data);
   } catch {
     document.getElementById('briefing-loading').classList.add('hidden');
     document.getElementById('briefing-error').classList.remove('hidden');

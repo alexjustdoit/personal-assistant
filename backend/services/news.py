@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import urlparse
 from backend.config import config
 
 
@@ -9,12 +10,13 @@ class NewsService:
         self.api_key = cfg.get("api_key", "")
         self.topics = cfg.get("topics", [])
 
-    async def get_digest(self) -> list[str]:
+    async def get_articles(self) -> list[dict]:
+        """Return structured articles with title, url, snippet, and source domain."""
         if not self.enabled or not self.api_key or not self.topics:
             return []
-        headlines = []
+        articles = []
         async with httpx.AsyncClient() as client:
-            for topic in self.topics[:5]:  # cap at 5 topics
+            for topic in self.topics[:5]:
                 try:
                     res = await client.post(
                         "https://api.tavily.com/search",
@@ -30,11 +32,29 @@ class NewsService:
                     data = res.json()
                     for result in data.get("results", []):
                         title = result.get("title", "").strip()
-                        if title:
-                            headlines.append(f"[{topic}] {title}")
+                        url = result.get("url", "").strip()
+                        snippet = result.get("content", "").strip()
+                        if not title or not url:
+                            continue
+                        source = urlparse(url).netloc.replace("www.", "")
+                        # Trim snippet to a reasonable length
+                        if len(snippet) > 200:
+                            snippet = snippet[:200].rsplit(" ", 1)[0] + "…"
+                        articles.append({
+                            "topic": topic,
+                            "title": title,
+                            "url": url,
+                            "snippet": snippet,
+                            "source": source,
+                        })
                 except Exception:
                     continue
-        return headlines
+        return articles
+
+    async def get_digest(self) -> list[str]:
+        """Plain headline strings — used by the scheduled ntfy briefing."""
+        articles = await self.get_articles()
+        return [f"[{a['topic']}] {a['title']}" for a in articles]
 
 
 news_service = NewsService()

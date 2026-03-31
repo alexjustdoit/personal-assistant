@@ -125,8 +125,7 @@ async def generate_briefing(request: Request):
     if period not in ("morning", "afternoon", "evening", "night"):
         period = "morning"
     from backend.services.briefing import generate_on_demand_briefing
-    content = await generate_on_demand_briefing(period)
-    return {"content": content}
+    return await generate_on_demand_briefing(period)
 
 
 @app.get("/api/providers")
