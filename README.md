@@ -43,30 +43,23 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure
-
-```powershell
-copy config.yaml.example config.yaml
-```
-
-Open `config.yaml` and set:
-
-| Key | Description |
-|---|---|
-| `llm.model` | Ollama model name (e.g. `llama3.1:8b`) |
-| `llm.ollama_url` | Ollama URL — default `http://localhost:11434` |
-| `anthropic_api_key` | Optional — for Claude quality routing |
-| `openai_api_key` | Optional — for OpenAI quality routing |
-
-### 5. Start Ollama
-
-Make sure Ollama is running and your model is pulled:
+### 4. Pull your Ollama model
 
 ```powershell
 ollama pull llama3.1:8b
 ```
 
-### 6. Run the assistant
+### 5. Run the setup wizard
+
+```powershell
+python setup.py
+```
+
+The wizard walks through every configuration option — LLM, voice, briefing time, weather, calendar, news, and notifications. Press Enter to accept defaults. Your answers are saved to `config.yaml` (gitignored).
+
+To reconfigure at any time, run `python setup.py` again.
+
+### 6. Start the assistant
 
 ```powershell
 python run.py
@@ -75,6 +68,12 @@ python run.py
 Open `http://localhost:8000` in your browser.
 
 To access from another device on your network (laptop, phone), open `http://<your-desktop-ip>:8000`.
+
+### Getting your iCal URL (for calendar integration)
+
+- **Google Calendar** — Settings → your calendar → *Secret address in iCal format*
+- **Outlook** — Calendar Settings → Shared calendars → publish → copy ICS link
+- **Apple Calendar** — Calendar → right-click calendar → Share Calendar → copy link
 
 ## LLM Routing
 
@@ -90,28 +89,40 @@ Quality routing is used for tasks that need higher accuracy (Phase 4+). Normal c
 ## Project Structure
 
 ```
-home-assistant/
+personal-assistant/
 ├── backend/
-│   ├── main.py          # FastAPI app entry point
-│   ├── config.py        # Config loader
+│   ├── main.py               # FastAPI app entry point
+│   ├── config.py             # Config loader
 │   ├── routers/
-│   │   └── chat.py      # WebSocket chat endpoint
+│   │   ├── chat.py           # WebSocket chat endpoint
+│   │   └── voice.py          # STT / TTS endpoints
 │   └── services/
-│       └── llm.py       # LLM router (Ollama / Claude / OpenAI)
+│       ├── llm.py            # LLM router (Ollama / Claude / OpenAI)
+│       ├── memory.py         # Conversation history + ChromaDB personal memory
+│       ├── stt.py            # Speech-to-text (faster-whisper)
+│       ├── tts.py            # Text-to-speech (Kokoro)
+│       ├── weather.py        # OpenWeatherMap
+│       ├── news.py           # Tavily news search
+│       ├── calendar_service.py  # iCal URL parser
+│       ├── notifications.py  # ntfy push notifications
+│       ├── briefing.py       # Morning briefing assembly
+│       └── scheduler.py      # APScheduler (briefing + reminders)
 ├── frontend/
 │   ├── index.html
 │   ├── css/style.css
 │   └── js/app.js
-├── run.py               # Start the server
-├── config.yaml.example  # Copy to config.yaml and fill in
+├── data/                     # gitignored — conversations, memory, chroma DB
+├── setup.py                  # First-run configuration wizard
+├── run.py                    # Start the server
+├── config.yaml.example       # Reference config (copy to config.yaml)
 └── requirements.txt
 ```
 
 ## Roadmap
 
 - [x] Phase 1 — Chat UI, streaming, LLM routing
-- [ ] Phase 2 — Voice (faster-whisper STT, Kokoro TTS)
-- [ ] Phase 3 — Persistent memory (ChromaDB)
-- [ ] Phase 4 — Proactive layer (briefings, reminders, calendar, news)
-- [ ] Phase 5 — Onboarding wizard
+- [x] Phase 2 — Voice (faster-whisper STT, Kokoro TTS)
+- [x] Phase 3 — Persistent memory (ChromaDB)
+- [x] Phase 4 — Proactive layer (briefings, reminders, calendar, news)
+- [x] Phase 5 — Onboarding wizard
 - [ ] Phase 6 — Windows service (auto-start, gaming toggle)

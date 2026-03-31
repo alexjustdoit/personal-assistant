@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+if not Path("config.yaml").exists():
+    print("config.yaml not found. Run setup first:")
+    print("  python setup.py")
+    sys.exit(1)
+
 import uvicorn
 from backend.config import config
 
