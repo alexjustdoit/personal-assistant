@@ -29,11 +29,46 @@ from backend.config import config
 # Chrome/Edge timestamps: microseconds since 1601-01-01
 _WEBKIT_EPOCH_OFFSET = 11_644_473_600  # seconds between 1601 and 1970
 
-# Domains to filter out of activity logs (noise)
-_IGNORE_DOMAINS = {
+# Built-in noise domains always ignored
+_BASE_IGNORE_DOMAINS = {
     "newtab", "localhost", "127.0.0.1", "extensions", "chrome", "edge",
     "about", "blank",
 }
+
+
+def _ignore_domains() -> set[str]:
+    """Base set + user-configured ignored_domains from config."""
+    custom = config.get("activity_tracking", {}).get("ignored_domains", [])
+    return _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
+
+
+def add_ignored_domain(domain: str) -> bool:
+    """
+    Add a domain to activity_tracking.ignored_domains in config.yaml.
+    Updates in-memory config too. Returns True if newly added, False if already present.
+    """
+    import yaml
+    from backend.config import CONFIG_PATH
+
+    domain = domain.lower().removeprefix("www.").strip("/").strip()
+    current = [d.lower() for d in config.get("activity_tracking", {}).get("ignored_domains", [])]
+    if domain in current:
+        return False
+
+    # Update in-memory
+    config.setdefault("activity_tracking", {}).setdefault("ignored_domains", []).append(domain)
+
+    # Persist to config.yaml
+    with open(CONFIG_PATH) as f:
+        raw = yaml.safe_load(f) or {}
+    raw.setdefault("activity_tracking", {}).setdefault("ignored_domains", [])
+    if domain not in [d.lower() for d in raw["activity_tracking"]["ignored_domains"]]:
+        raw["activity_tracking"]["ignored_domains"].append(domain)
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
+
+    print(f"[ActivityTracker] Ignoring domain: {domain}")
+    return True
 
 
 def _is_windows() -> bool:
@@ -75,12 +110,13 @@ def poll_browser_history(minutes_back: int = 30) -> list[dict]:
                     "WHERE last_visit_time > ? ORDER BY last_visit_time DESC",
                     (cutoff_webkit,),
                 ).fetchall()
+            ignore = _ignore_domains()
             for url, title, ts in rows:
                 try:
                     domain = urlparse(url).netloc.removeprefix("www.")
                 except Exception:
                     domain = url
-                if any(domain.startswith(ign) for ign in _IGNORE_DOMAINS):
+                if any(domain.startswith(ign) for ign in ignore):
                     continue
                 entries.append({
                     "browser": browser,

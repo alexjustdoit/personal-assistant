@@ -22,6 +22,10 @@ _GOVEE_HINT = re.compile(
     r"\b(light|lights|lamp|bright|dim|turn on|turn off|smart home|color|colour|kelvin)\b",
     re.I,
 )
+_IGNORE_SITE_HINT = re.compile(
+    r"\b(ignore|stop (logging|tracking|recording)|don'?t (log|track|record))\b",
+    re.I,
+)
 
 _SEARCH_SYSTEM = "You are a search router. Reply with JSON only, no explanation."
 _SEARCH_PROMPT = (
@@ -61,6 +65,13 @@ _GOVEE_PROMPT = (
     '"color": "color name or r,g,b or null", '
     '"color_temp": kelvin or null}} '
     'or {{"action": null}}'
+)
+
+_IGNORE_SITE_SYSTEM = "You detect requests to ignore a website from activity logging. Reply with JSON only."
+_IGNORE_SITE_PROMPT = (
+    "Does this message ask to stop logging, tracking, or recording a specific website or domain?\n"
+    'Message: "{msg}"\n'
+    'JSON: {{"domain": "domain.com"}} or {{"domain": null}}'
 )
 
 
@@ -148,6 +159,22 @@ async def _detect_govee(message: str) -> dict | None:
     return None
 
 
+async def _detect_ignore_site(message: str) -> str | None:
+    """Returns a domain string if the user wants to ignore it, else None."""
+    try:
+        response = await llm_router.complete_detect([
+            {"role": "system", "content": _IGNORE_SITE_SYSTEM},
+            {"role": "user", "content": _IGNORE_SITE_PROMPT.format(msg=message)},
+        ])
+        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            return data.get("domain") or None
+    except Exception:
+        pass
+    return None
+
+
 async def _auto_extract_memories(message: str):
     try:
         response = await llm_router.complete([
@@ -208,6 +235,8 @@ async def chat_websocket(websocket: WebSocket):
             from backend.services.todoist import todoist_enabled, get_tasks, add_task, complete_task, find_task_by_name
             from backend.services.govee import govee_enabled, execute_govee_intent
 
+            from backend.services.activity_tracker import add_ignored_domain
+
             detect_tasks = {}
             if user_message and search_enabled() and _SEARCH_HINT.search(user_message):
                 detect_tasks["search"] = asyncio.create_task(_detect_search(user_message))
@@ -215,10 +244,13 @@ async def chat_websocket(websocket: WebSocket):
                 detect_tasks["todoist"] = asyncio.create_task(_detect_todoist(user_message))
             if user_message and govee_enabled() and _GOVEE_HINT.search(user_message):
                 detect_tasks["govee"] = asyncio.create_task(_detect_govee(user_message))
+            if user_message and _IGNORE_SITE_HINT.search(user_message):
+                detect_tasks["ignore_site"] = asyncio.create_task(_detect_ignore_site(user_message))
 
             search_result = None
             todoist_result = None
             govee_result = None
+            ignore_site_result = None
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
@@ -227,6 +259,8 @@ async def chat_websocket(websocket: WebSocket):
                     todoist_result = detect_tasks["todoist"].result() if not detect_tasks["todoist"].exception() else None
                 if "govee" in detect_tasks:
                     govee_result = detect_tasks["govee"].result() if not detect_tasks["govee"].exception() else None
+                if "ignore_site" in detect_tasks:
+                    ignore_site_result = detect_tasks["ignore_site"].result() if not detect_tasks["ignore_site"].exception() else None
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -274,6 +308,14 @@ async def chat_websocket(websocket: WebSocket):
             if govee_result:
                 result_text = await execute_govee_intent(govee_result)
                 system_prompt += f"\n\n{result_text}"
+
+            # --- Ignore site ---
+            if ignore_site_result:
+                added = await asyncio.to_thread(add_ignored_domain, ignore_site_result)
+                if added:
+                    system_prompt += f'\n\n[Activity] Added "{ignore_site_result}" to ignored domains — it will no longer appear in activity logs. Confirm to the user.'
+                else:
+                    system_prompt += f'\n\n[Activity] "{ignore_site_result}" is already in the ignored domains list. Tell the user it was already ignored.'
 
             # --- Save & build messages ---
             if user_message:

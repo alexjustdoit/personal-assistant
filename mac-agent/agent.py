@@ -56,10 +56,15 @@ _APPLE_EPOCH_OFFSET = 978_307_200
 # Chrome/Edge: microseconds since 1601-01-01
 _WEBKIT_EPOCH_OFFSET = 11_644_473_600
 
-_IGNORE_DOMAINS = {
+_BASE_IGNORE_DOMAINS = {
     "newtab", "localhost", "127.0.0.1", "extensions", "chrome",
     "edge", "about", "blank", "apple",
 }
+
+
+def _ignore_domains(cfg: dict) -> set[str]:
+    custom = cfg.get("ignored_domains", [])
+    return _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
 
 # ---------------------------------------------------------------------------
 # Browser history
@@ -72,7 +77,7 @@ def _domain(url: str) -> str:
         return url
 
 
-def _read_safari(minutes_back: int) -> list[dict]:
+def _read_safari(minutes_back: int, ignore: set[str] | None = None) -> list[dict]:
     history_db = Path.home() / "Library" / "Safari" / "History.db"
     if not history_db.exists():
         return []
@@ -95,10 +100,11 @@ def _read_safari(minutes_back: int) -> list[dict]:
                 """,
                 (cutoff_apple,),
             ).fetchall()
+        ignore = ignore or _BASE_IGNORE_DOMAINS
         entries = []
         for url, title, ts in rows:
             d = _domain(url)
-            if any(d.startswith(ign) for ign in _IGNORE_DOMAINS):
+            if any(d.startswith(ign) for ign in ignore):
                 continue
             entries.append({"browser": "Safari", "url": url, "title": (title or "").strip() or d, "domain": d})
         return entries
@@ -116,7 +122,7 @@ def _read_safari(minutes_back: int) -> list[dict]:
                 pass
 
 
-def _read_chromium(browser: str, history_path: Path, minutes_back: int) -> list[dict]:
+def _read_chromium(browser: str, history_path: Path, minutes_back: int, ignore: set[str] | None = None) -> list[dict]:
     if not history_path.exists():
         return []
     cutoff_webkit = int(
@@ -133,10 +139,11 @@ def _read_chromium(browser: str, history_path: Path, minutes_back: int) -> list[
                 "SELECT url, title, last_visit_time FROM urls WHERE last_visit_time > ? ORDER BY last_visit_time DESC",
                 (cutoff_webkit,),
             ).fetchall()
+        ignore = ignore or _BASE_IGNORE_DOMAINS
         entries = []
         for url, title, _ in rows:
             d = _domain(url)
-            if any(d.startswith(ign) for ign in _IGNORE_DOMAINS):
+            if any(d.startswith(ign) for ign in ignore):
                 continue
             entries.append({"browser": browser, "url": url, "title": (title or "").strip() or d, "domain": d})
         return entries
@@ -151,19 +158,12 @@ def _read_chromium(browser: str, history_path: Path, minutes_back: int) -> list[
                 pass
 
 
-def poll_browser_history(minutes_back: int) -> list[dict]:
+def poll_browser_history(minutes_back: int, cfg: dict | None = None) -> list[dict]:
+    ignore = _ignore_domains(cfg or {})
     app_support = Path.home() / "Library" / "Application Support"
-    entries = _read_safari(minutes_back)
-    entries += _read_chromium(
-        "Chrome",
-        app_support / "Google" / "Chrome" / "Default" / "History",
-        minutes_back,
-    )
-    entries += _read_chromium(
-        "Edge",
-        app_support / "Microsoft Edge" / "Default" / "History",
-        minutes_back,
-    )
+    entries = _read_safari(minutes_back, ignore)
+    entries += _read_chromium("Chrome", app_support / "Google" / "Chrome" / "Default" / "History", minutes_back, ignore)
+    entries += _read_chromium("Edge", app_support / "Microsoft Edge" / "Default" / "History", minutes_back, ignore)
     return entries
 
 # ---------------------------------------------------------------------------
@@ -199,12 +199,12 @@ def _summarise_history(entries: list[dict]) -> list[str]:
     return lines
 
 
-def write_log(log_folder: str, minutes_back: int) -> Path | None:
+def write_log(log_folder: str, minutes_back: int, cfg: dict | None = None) -> Path | None:
     folder = Path(log_folder).expanduser()
     folder.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now()
-    entries = poll_browser_history(minutes_back)
+    entries = poll_browser_history(minutes_back, cfg)
     app = get_active_app()
 
     if not entries and not app:
@@ -239,7 +239,7 @@ def main():
         print("[MacAgent] log_folder not set in config.yaml")
         sys.exit(1)
     minutes_back = int(cfg.get("poll_interval_minutes", 30))
-    write_log(log_folder, minutes_back)
+    write_log(log_folder, minutes_back, cfg)
 
 
 if __name__ == "__main__":

@@ -12,3 +12,8 @@ log_folder: "~/Library/Mobile Documents/com~apple~CloudDocs/PA-Activity"
 
 # How far back to look in browser history each poll (should match poll interval)
 poll_interval_minutes: 30
+
+# Domains to exclude from activity logs (add via chat on Windows PA or edit here directly)
+# ignored_domains:
+#   - linkedin.com
+#   - mail.google.com
