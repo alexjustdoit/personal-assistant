@@ -3,47 +3,47 @@ server:
   port: 8000
 
 llm:
-  provider: ollama       # ollama | claude | openai
-  model: llama3.1:8b
+  provider: gemini       # ollama | claude | openai | gemini
+  model: llama3.1:8b    # Ollama model — used when provider is ollama or as fallback
   ollama_url: http://localhost:11434
-  quality_model: claude  # used for quality_required=True tasks
+  quality_model: gemini  # used for quality_required=True tasks
 
 stt:
   enabled: true
-  model: base          # tiny | base | small | medium | large-v3
-  device: cuda         # cuda | cpu
+  model: base            # tiny | base | small | medium | large-v3
+  device: cuda           # cuda | cpu
   compute_type: float16  # float16 (GPU) | int8 (CPU)
 
 tts:
   enabled: true
-  voice: af_heart      # af_heart | af_bella | af_nicole | am_adam | am_michael
+  voice: af_heart        # af_heart | af_bella | af_nicole | am_adam | am_michael
   speed: 1.0
 
 briefing:
   enabled: true
-  time: "07:00"        # 24hr format
+  time: "07:00"          # 24hr format
   timezone: "America/New_York"  # IANA timezone name
 
 weather:
   enabled: true
-  api_key: ""          # OpenWeatherMap API key (free tier)
-  city: "New York,US"  # City name or "City,CountryCode"
-  units: imperial      # imperial (°F) | metric (°C)
+  api_key: ""            # OpenWeatherMap API key (free tier)
+  city: "New York,US"   # City name or "City,CountryCode"
+  units: imperial        # imperial (°F) | metric (°C)
 
 calendar:
   enabled: false
-  ical_url: ""         # Private iCal URL from Google/Outlook/Apple Calendar
+  ical_url: ""           # Private iCal URL from Google/Outlook/Apple Calendar
 
 news:
   enabled: true
-  api_key: ""          # Tavily API key (free tier)
-  topics: []           # e.g. ["technology", "Formula 1", "local news"]
+  topics: []             # e.g. ["technology", "politics", "local Seattle news"]
 
 notifications:
   ntfy_url: "https://ntfy.sh"
-  ntfy_topic: ""       # Your unique topic name (e.g. "my-assistant-abc123")
+  ntfy_topic: ""         # Your unique topic name (e.g. "my-assistant-abc123")
 
-# Leave blank if not using
-anthropic_api_key: ""
-openai_api_key: ""
+# Cloud provider API keys — leave blank if not using
+gemini_api_key: ""       # Google AI Studio — aistudio.google.com (free tier available)
+anthropic_api_key: ""    # Anthropic — console.anthropic.com
+openai_api_key: ""       # OpenAI — platform.openai.com
 openai_model: gpt-4o-mini
