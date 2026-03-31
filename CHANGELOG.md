@@ -6,6 +6,20 @@ All notable changes to this project are documented here.
 
 ## [Proposed]
 
+### Next up
+
+- **Web search in chat** — Tavily already integrated for news; expose it as a callable tool in chat so the LLM can search the web on demand for grounded, current answers
+- **Persistent memory** — ChromaDB already installed; store facts about the user across sessions and inject relevant context automatically into each conversation
+- **Todoist integration** — Connect to Todoist API for task/todo management; chat commands ("add X to my list", "what's due today") and a home page tile
+- **Second calendar source** — Support multiple iCal URLs in config; merge and deduplicate events across sources (e.g. work + personal)
+- **PWA / home screen install** — Add web app manifest and service worker so the app can be installed on phone/desktop home screen with full-screen experience
+- **End-of-day briefing** — Second scheduled briefing (~6–7 PM); recap of the day, preview of tomorrow, outstanding reminders
+- **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
+- **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
+- **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
+
+---
+
 ### Smart home — Govee integration
 Control Govee devices via the Govee Developer API. Planned device support (subject to API compatibility — verify at developer.govee.com):
 - **H6008 smart bulbs** — on/off, brightness, color temperature (likely supported)
