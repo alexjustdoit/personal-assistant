@@ -5,10 +5,12 @@ from backend.config import config
 
 class LLMRouter:
     def __init__(self):
-        self.provider = config["llm"]["provider"]
-        self.model = config["llm"]["model"]
-        self.ollama_url = config["llm"].get("ollama_url", "http://localhost:11434")
-        self.quality_model = config["llm"].get("quality_model", "ollama")
+        llm_cfg = config.get("llm", {})
+        self._ready = bool(llm_cfg)
+        self.provider = llm_cfg.get("provider", "ollama")
+        self.model = llm_cfg.get("model", "llama3.1:8b")
+        self.ollama_url = llm_cfg.get("ollama_url", "http://localhost:11434")
+        self.quality_model = llm_cfg.get("quality_model", "ollama")
         self.anthropic_key = config.get("anthropic_api_key", "")
         self.openai_key = config.get("openai_api_key", "")
         self.openai_model = config.get("openai_model", "gpt-4o-mini")

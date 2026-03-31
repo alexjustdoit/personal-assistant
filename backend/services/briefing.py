@@ -65,6 +65,8 @@ Write the morning briefing:"""
         {"role": "user", "content": prompt},
     ])
 
+    memory_service.save_briefing(briefing_text)
+
     await notification_service.send(
         title="Good morning!",
         body=briefing_text,

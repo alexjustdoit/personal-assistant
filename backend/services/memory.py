@@ -51,6 +51,13 @@ class MemoryService:
                     created_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS briefings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content TEXT NOT NULL,
+                    generated_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -139,6 +146,46 @@ class MemoryService:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("UPDATE reminders SET completed = 1 WHERE id = ?", (reminder_id,))
             conn.commit()
+
+    # --- SQLite: briefings ---
+
+    def save_briefing(self, content: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO briefings (content, generated_at) VALUES (?, ?)",
+                (content, datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+
+    def get_latest_briefing(self) -> dict | None:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT content, generated_at FROM briefings ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if row:
+            return {"content": row[0], "generated_at": row[1]}
+        return None
+
+    # --- SQLite: chat list ---
+
+    def get_chats(self) -> list[dict]:
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("""
+                SELECT
+                    m.session_id,
+                    MIN(m.timestamp) AS created_at,
+                    MAX(m.timestamp) AS last_active,
+                    (SELECT content FROM messages
+                     WHERE session_id = m.session_id AND role = 'user'
+                     ORDER BY id LIMIT 1) AS name
+                FROM messages m
+                GROUP BY m.session_id
+                ORDER BY last_active DESC
+            """).fetchall()
+        return [
+            {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2]}
+            for r in rows
+        ]
 
     # --- Memory detection ---
 

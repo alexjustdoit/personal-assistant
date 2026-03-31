@@ -49,23 +49,15 @@ pip install -r requirements.txt
 ollama pull llama3.1:8b
 ```
 
-### 5. Run the setup wizard
-
-```powershell
-python setup.py
-```
-
-The wizard walks through every configuration option — LLM, voice, briefing time, weather, calendar, news, and notifications. Press Enter to accept defaults. Your answers are saved to `config.yaml` (gitignored).
-
-To reconfigure at any time, run `python setup.py` again.
-
-### 6. Start the assistant
+### 5. Start the assistant
 
 ```powershell
 python run.py
 ```
 
-Open `http://localhost:8000` in your browser.
+Open `http://localhost:8000` in your browser. On first launch (no `config.yaml` present), you'll be redirected to the in-browser setup wizard automatically. Fill in your options across the steps — the wizard saves your config and restarts the server when done.
+
+To reconfigure, delete `config.yaml` and restart — the wizard will run again.
 
 To access from another device on your network (laptop, phone), open `http://<your-desktop-ip>:8000`.
 
@@ -149,11 +141,15 @@ personal-assistant/
 │       ├── briefing.py       # Morning briefing assembly
 │       └── scheduler.py      # APScheduler (briefing + reminders)
 ├── frontend/
-│   ├── index.html
+│   ├── home.html             # Landing page (greeting, briefing, recent chats)
+│   ├── chat.html             # Chat view with sidebar
+│   ├── setup.html            # First-run setup wizard
 │   ├── css/style.css
-│   └── js/app.js
+│   └── js/
+│       ├── home.js
+│       ├── chat.js
+│       └── setup.js
 ├── data/                     # gitignored — conversations, memory, chroma DB
-├── setup.py                  # First-run configuration wizard
 ├── run.py                    # Start the server
 ├── config.yaml.example       # Reference config (copy to config.yaml)
 └── requirements.txt
@@ -169,10 +165,17 @@ All runtime data lives in `data/` (gitignored — never pushed to the repo).
 | `data/chroma/` | Personal memory (ChromaDB vectors) |
 | `data/logs/` | Service logs |
 
-**Full reset:**
+**Full reset** (conversations, memory, briefings):
 ```powershell
 rmdir /s /q data
 ```
+
+**Reset and re-run setup wizard:**
+```powershell
+rmdir /s /q data
+del config.yaml
+```
+Restart the server — you'll be redirected to the setup wizard automatically.
 
 **Reset selectively:**
 ```powershell
@@ -188,5 +191,5 @@ The app recreates `data/` automatically on next start.
 - [x] Phase 2 — Voice (faster-whisper STT, Kokoro TTS)
 - [x] Phase 3 — Persistent memory (ChromaDB)
 - [x] Phase 4 — Proactive layer (briefings, reminders, calendar, news)
-- [x] Phase 5 — Onboarding wizard
+- [x] Phase 5 — Onboarding wizard (in-browser setup, home page, multi-chat sidebar)
 - [x] Phase 6 — Windows service (auto-start, gaming toggle)

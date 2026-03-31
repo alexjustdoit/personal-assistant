@@ -6,9 +6,6 @@ All notable changes to this project are documented here.
 
 ## [Proposed]
 
-### GUI-based setup wizard
-Replace the terminal setup wizard with a browser-based first-run flow. When `config.yaml` is missing, the app serves a setup page instead of the main UI. User fills in a multi-step form, submits, config is saved, and the app prompts a restart. Requires lazy config loading and a `POST /api/setup` endpoint.
-
 ### Smart home — Govee integration
 Control Govee devices via the Govee Developer API. Planned device support (subject to API compatibility — verify at developer.govee.com):
 - **H6008 smart bulbs** — on/off, brightness, color temperature (likely supported)
@@ -16,19 +13,6 @@ Control Govee devices via the Govee Developer API. Planned device support (subje
 - **Govee Life Smart air purifier** — on/off, mode/fan speed (appliance API support uncertain)
 
 Control via chat ("turn off the bedroom light", "set the lamp to red") using LLM intent detection and Govee API calls.
-
-### Home landing page
-Replace the current chat-first layout with a dedicated home/dashboard page as the default view:
-- Displays the most recent morning briefing (weather, calendar, news, reminders) in a clean card layout
-- Briefing updates each time the scheduler runs — persistent between visits
-- Quick-start button to jump directly into chat
-- Serves as the natural "glanceable" view when opening the app on phone or laptop
-
-### Multi-chat support
-- Store multiple named conversations, each with their own history
-- Sidebar or slide-out menu to browse and switch between chats
-- New chat button creates a fresh session without losing existing ones
-- Chat list sorted by most recently active
 
 ### UI quality of life
 - Thinking indicator — show a subtle animation while waiting for the first token
@@ -46,6 +30,41 @@ Allow the assistant to update certain config values (e.g. news topics) through c
 ### Portfolio / showcase
 - `DEMO.md` with screenshots and feature walkthrough
 - Demo video or GIF showing voice input, morning briefing, and smart home control
+
+---
+
+## [0.2] — 2026-03-30
+
+### Added — In-browser setup wizard
+- Multi-step setup wizard served at `/setup` (Welcome → AI Engine → Integrations → Voice → Launch)
+- App boots without `config.yaml` — automatically redirects to `/setup` on first run
+- Live Ollama connection test built into the wizard
+- Config saved via `POST /api/setup/save`; server restarts automatically and wizard polls `/health` until it's back
+- Replaces `setup.py` terminal wizard entirely
+
+### Added — Home landing page
+- `/` now serves a dashboard page (`home.html`) instead of going straight to chat
+- Displays time-aware greeting (good morning / afternoon / evening) and today's date
+- Morning briefing card — shows the most recent LLM-narrated briefing with timestamp
+- Recent chats list — click any to jump straight into that conversation
+- "New chat" button creates a fresh session
+
+### Added — Chat sidebar & multi-chat
+- Collapsible sidebar in chat view listing all past conversations
+- Chats named automatically from first user message; sorted by most recently active
+- Click any chat to switch — session ID stored in `localStorage`, history loaded on connect
+- New Chat button in sidebar starts a fresh session
+- Sidebar collapses on mobile (full-screen overlay with backdrop)
+- Hamburger toggle in header on all screen sizes
+
+### Changed — Backend
+- `config.py` loads gracefully with no `config.yaml` (returns `{}` instead of crashing)
+- `is_configured()` check gates scheduler startup and page routing
+- `memory.py` — added `briefings` table, `save_briefing()`, `get_latest_briefing()`, `get_chats()`
+- `briefing.py` — saves generated briefing to SQLite in addition to sending via ntfy
+- `llm.py` — graceful init with missing config; uses `.get()` with defaults throughout
+- `main.py` — multi-page routing (`/`, `/chat`, `/setup`), setup API endpoints, `os.execv` restart
+- New endpoints: `GET /api/briefing/latest`, `GET /api/chats`, `POST /api/setup/test-ollama`
 
 ---
 
