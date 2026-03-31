@@ -3,7 +3,6 @@
 
 import sys
 import yaml
-import getpass
 from pathlib import Path
 
 CONFIG_PATH = Path("config.yaml")
@@ -26,14 +25,11 @@ def header(title):
 def ask(prompt, default=None, secret=False):
     suffix = f" [{default}]" if default is not None else ""
     full_prompt = f"  {prompt}{suffix}: "
-    if secret:
-        value = getpass.getpass(full_prompt)
-    else:
-        try:
-            value = input(full_prompt).strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nSetup cancelled.")
-            sys.exit(0)
+    try:
+        value = input(full_prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nSetup cancelled.")
+        sys.exit(0)
     return value if value else default
 
 
@@ -110,12 +106,12 @@ def setup_llm():
 
     print()
     if ask_bool("Add Anthropic API key for Claude quality routing?", default=False):
-        anthropic_key = ask("Anthropic API key", secret=True) or ""
+        anthropic_key = ask("Anthropic API key") or ""
         if anthropic_key:
             quality_model = "claude"
 
     if ask_bool("Add OpenAI API key for GPT quality routing?", default=False):
-        openai_key = ask("OpenAI API key", secret=True) or ""
+        openai_key = ask("OpenAI API key") or ""
         openai_model = ask("OpenAI model", default="gpt-4o-mini")
         if openai_key and quality_model == "ollama":
             quality_model = "openai"
@@ -170,7 +166,7 @@ def setup_weather():
     if not enabled:
         return {"weather": {"enabled": False}}
     print("  Get a free key at https://openweathermap.org/api")
-    api_key = ask("OpenWeatherMap API key", secret=True) or ""
+    api_key = ask("OpenWeatherMap API key") or ""
     city = ask("City (e.g. New York,US)", default="") or ""
     units = ask("Units (imperial °F / metric °C)", default="imperial")
     return {"weather": {"enabled": bool(api_key and city), "api_key": api_key, "city": city, "units": units}}
@@ -193,7 +189,7 @@ def setup_news():
     if not enabled:
         return {"news": {"enabled": False, "api_key": "", "topics": []}}
     print("  Get a free key at https://tavily.com")
-    api_key = ask("Tavily API key", secret=True) or ""
+    api_key = ask("Tavily API key") or ""
     raw_topics = ask("Topics (comma-separated, e.g. technology, Formula 1)") or ""
     topics = [t.strip() for t in raw_topics.split(",") if t.strip()]
     return {"news": {"enabled": bool(api_key and topics), "api_key": api_key, "topics": topics}}
