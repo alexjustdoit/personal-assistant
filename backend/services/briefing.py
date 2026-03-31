@@ -101,6 +101,10 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str, provid
         return " ".join(summary_lines).strip()
     except Exception as e:
         logger.error("[briefing] %s synthesis failed: %s", topic, e)
+        # Re-raise quota/auth errors so the caller can stop processing remaining topics
+        msg = str(e)
+        if "429" in msg or "401" in msg or "403" in msg:
+            raise
         return ""
 
 
@@ -131,8 +135,13 @@ async def _synthesize_rss_news(topics: list[str], provider: str | None = None) -
 
     # Sequential LLM calls — avoids per-minute rate limits on free tier APIs
     summaries = []
-    for topic, articles in by_topic.items():
-        summary = await _synthesize_topic(topic, articles, today, provider=provider)
+    for i, (topic, articles) in enumerate(by_topic.items()):
+        try:
+            summary = await _synthesize_topic(topic, articles, today, provider=provider)
+        except Exception:
+            # Quota/auth error — skip remaining topics rather than hammering the API
+            summaries.extend([""] * (len(by_topic) - i))
+            break
         summaries.append(summary)
 
     result = []
