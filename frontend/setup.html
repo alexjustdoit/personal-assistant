@@ -88,16 +88,34 @@
               <div class="form-group">
                 <label class="form-label">Google Gemini API key</label>
                 <input id="gemini-key" type="text" class="form-input font-mono" placeholder="AIza…" autocomplete="off" spellcheck="false" />
-                <p class="form-hint">Free tier available at <span class="text-gray-400">aistudio.google.com</span> — recommended for briefing quality</p>
+                <p class="form-hint">Free tier at <span class="text-gray-400">aistudio.google.com</span> — use AI Studio key, not Cloud Console</p>
               </div>
               <div class="form-group">
-                <label class="form-label">Default provider</label>
+                <label class="form-label">Groq API key</label>
+                <input id="groq-key" type="text" class="form-input font-mono" placeholder="gsk_…" autocomplete="off" spellcheck="false" />
+                <p class="form-hint">Free tier at <span class="text-gray-400">console.groq.com</span> — llama-3.3-70b, fast and free</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default chat provider</label>
                 <select id="default-provider" class="form-input">
                   <option value="ollama">Ollama (local)</option>
                   <option value="claude">Claude (Anthropic)</option>
                   <option value="openai">OpenAI</option>
-                  <option value="gemini">Gemini 2.0 Flash (Google)</option>
+                  <option value="gemini">Gemini 2.5 Flash (Google)</option>
+                  <option value="groq">Groq — llama-3.3-70b (free)</option>
                 </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Briefing provider</label>
+                <select id="briefing-provider" class="form-input">
+                  <option value="">Same as chat provider</option>
+                  <option value="ollama">Ollama (local)</option>
+                  <option value="claude">Claude (Anthropic)</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Gemini 2.5 Flash (Google)</option>
+                  <option value="groq">Groq — llama-3.3-70b (free)</option>
+                </select>
+                <p class="form-hint">Override which model generates your daily briefing</p>
               </div>
             </div>
           </div>

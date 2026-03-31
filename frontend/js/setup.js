@@ -123,12 +123,15 @@ function buildConfig() {
   const anthropicKey = document.getElementById('anthropic-key').value.trim();
   const openaiKey = document.getElementById('openai-key').value.trim();
   const geminiKey = document.getElementById('gemini-key').value.trim();
+  const groqKey = document.getElementById('groq-key').value.trim();
+  const briefingProvider = document.getElementById('briefing-provider').value;
 
   // quality_model: prefer best available cloud, otherwise ollama
   let qualityModel = 'ollama';
   if (geminiKey) qualityModel = 'gemini';
   else if (anthropicKey) qualityModel = 'claude';
   else if (openaiKey) qualityModel = 'openai';
+  else if (groqKey) qualityModel = 'groq';
 
   return {
     server: { host: '0.0.0.0', port: 8000 },
@@ -137,6 +140,7 @@ function buildConfig() {
       model: document.getElementById('ollama-model').value.trim() || 'llama3.1:8b',
       ollama_url: document.getElementById('ollama-url').value.trim() || 'http://localhost:11434',
       quality_model: qualityModel,
+      ...(briefingProvider && { briefing_provider: briefingProvider }),
     },
     stt: {
       enabled: document.getElementById('stt-enabled').checked,
@@ -175,8 +179,9 @@ function buildConfig() {
     },
     anthropic_api_key: anthropicKey,
     openai_api_key: openaiKey,
-    openai_model: 'gpt-4o-mini',
+    openai_model: 'gpt-5.4-nano',
     gemini_api_key: geminiKey,
+    groq_api_key: groqKey,
   };
 }
 

@@ -81,7 +81,7 @@ async def _synthesize_topic(topic: str, articles: list[dict], today: str) -> str
     )
 
     try:
-        response = await llm_router.complete([
+        response = await llm_router.complete_briefing([
             {"role": "system", "content": "You are a news briefing editor. Follow the output format exactly."},
             {"role": "user", "content": prompt},
         ])
@@ -228,7 +228,7 @@ async def generate_and_send_briefing():
         f"Data:\n{data_block}\n\nWrite the morning briefing:"
     )
 
-    briefing_text = await llm_router.complete([
+    briefing_text = await llm_router.complete_briefing([
         {"role": "system", "content": PERIOD_SYSTEM["morning"]},
         {"role": "user", "content": prompt},
     ])
