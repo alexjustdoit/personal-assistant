@@ -94,16 +94,16 @@ function appendToken(token) {
   currentText += token;
   currentBubble.textContent = currentText;
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  if (ttsEnabled) processTTSToken(token);
 }
 
 function finishStreaming() {
   if (currentBubble) {
     currentBubble.classList.remove('streaming');
-    const textToSpeak = currentText;
     currentBubble = null;
     currentText = '';
-    if (ttsEnabled) speakText(textToSpeak);
   }
+  if (ttsEnabled) flushTTSBuffer();
   isStreaming = false;
   setInputEnabled(true);
 }
@@ -133,6 +133,7 @@ function sendMessage() {
   appendMessage('user', content);
   inputEl.value = '';
   isStreaming = true;
+  resetTTS();
   setInputEnabled(false);
   startAssistantBubble();
 
@@ -216,9 +217,75 @@ micBtn.addEventListener('click', () => {
   }
 });
 
-// --- TTS ---
+// --- TTS (sentence-level streaming) ---
 
 let ttsEnabled = false;
+let ttsQueue = [];
+let ttsPlaying = false;
+let ttsSentenceBuffer = '';
+let ttsCurrentAudio = null;
+
+const SENTENCE_END = /[.!?]+\s/;
+
+function processTTSToken(token) {
+  ttsSentenceBuffer += token;
+  const match = SENTENCE_END.exec(ttsSentenceBuffer);
+  if (match) {
+    const cutAt = match.index + match[0].length;
+    const sentence = ttsSentenceBuffer.slice(0, cutAt).trim();
+    ttsSentenceBuffer = ttsSentenceBuffer.slice(cutAt);
+    if (sentence) enqueueTTS(sentence);
+  }
+}
+
+function flushTTSBuffer() {
+  const remaining = ttsSentenceBuffer.trim();
+  ttsSentenceBuffer = '';
+  if (remaining) enqueueTTS(remaining);
+}
+
+function resetTTS() {
+  ttsQueue = [];
+  ttsSentenceBuffer = '';
+  if (ttsCurrentAudio) {
+    ttsCurrentAudio.pause();
+    ttsCurrentAudio = null;
+  }
+  ttsPlaying = false;
+}
+
+function enqueueTTS(text) {
+  ttsQueue.push(text);
+  if (!ttsPlaying) playNextTTS();
+}
+
+async function playNextTTS() {
+  if (ttsQueue.length === 0) {
+    ttsPlaying = false;
+    return;
+  }
+  ttsPlaying = true;
+  const text = ttsQueue.shift();
+  try {
+    const res = await fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) { playNextTTS(); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    ttsCurrentAudio = new Audio(url);
+    ttsCurrentAudio.onended = () => {
+      URL.revokeObjectURL(url);
+      ttsCurrentAudio = null;
+      playNextTTS();
+    };
+    ttsCurrentAudio.play();
+  } catch {
+    playNextTTS();
+  }
+}
 
 function setTTS(enabled) {
   ttsEnabled = enabled;
@@ -227,24 +294,6 @@ function setTTS(enabled) {
 }
 
 ttsToggle.addEventListener('click', () => setTTS(!ttsEnabled));
-
-async function speakText(text) {
-  try {
-    const res = await fetch('/api/voice/speak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.play();
-    audio.onended = () => URL.revokeObjectURL(url);
-  } catch {
-    // TTS failure is non-fatal — message is already displayed as text
-  }
-}
 
 // --- Init ---
 
