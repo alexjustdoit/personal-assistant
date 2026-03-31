@@ -68,7 +68,47 @@ def add_ignored_domain(domain: str) -> bool:
         yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
 
     print(f"[ActivityTracker] Ignoring domain: {domain}")
+
+    # Retroactively purge from existing log files
+    log_folder = config.get("activity_tracking", {}).get("log_folder", "")
+    if log_folder:
+        purge_domain_from_logs(domain, log_folder)
+
     return True
+
+
+def purge_domain_from_logs(domain: str, log_folder: str) -> int:
+    """
+    Remove all browser log lines mentioning `domain` from activity log files.
+    Deletes the file entirely if nothing remains after the browser section.
+    Returns the number of files modified.
+    """
+    folder = Path(log_folder)
+    if not folder.exists():
+        return 0
+
+    modified = 0
+    for log_file in folder.glob("activity_*.md"):
+        try:
+            original = log_file.read_text(encoding="utf-8")
+            filtered = "\n".join(
+                line for line in original.splitlines()
+                if domain not in line.lower()
+            ).strip()
+
+            # If the file is now empty or only has a heading, remove it
+            non_empty_lines = [l for l in filtered.splitlines() if l.strip() and not l.startswith("#")]
+            if not non_empty_lines:
+                log_file.unlink()
+                print(f"[ActivityTracker] Deleted (now empty): {log_file.name}")
+            elif filtered != original.strip():
+                log_file.write_text(filtered + "\n", encoding="utf-8")
+                print(f"[ActivityTracker] Purged {domain} from {log_file.name}")
+            modified += 1
+        except Exception as e:
+            print(f"[ActivityTracker] Purge error on {log_file.name}: {e}")
+
+    return modified
 
 
 def _is_windows() -> bool:

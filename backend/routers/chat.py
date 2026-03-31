@@ -313,7 +313,7 @@ async def chat_websocket(websocket: WebSocket):
             if ignore_site_result:
                 added = await asyncio.to_thread(add_ignored_domain, ignore_site_result)
                 if added:
-                    system_prompt += f'\n\n[Activity] Added "{ignore_site_result}" to ignored domains — it will no longer appear in activity logs. Confirm to the user.'
+                    system_prompt += f'\n\n[Activity] Added "{ignore_site_result}" to ignored domains and removed it from existing log files. It will no longer appear in any activity logs. Confirm to the user.'
                 else:
                     system_prompt += f'\n\n[Activity] "{ignore_site_result}" is already in the ignored domains list. Tell the user it was already ignored.'
 
