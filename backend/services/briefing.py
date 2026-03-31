@@ -122,7 +122,7 @@ async def _synthesize_rss_news(topics: list[str]) -> list[dict]:
     if not by_topic:
         return []
 
-    today = datetime.utcnow().strftime("%A, %B %-d, %Y")  # e.g. "Monday, March 30, 2026"
+    today = datetime.utcnow().strftime("%A, %B %d, %Y").replace(" 0", " ")  # e.g. "Monday, March 30, 2026"
 
     # Parallel LLM calls — one per topic
     synthesis_tasks = [
@@ -217,7 +217,7 @@ async def generate_and_send_briefing():
         return
 
     data_block = "\n\n".join(sections)
-    today = datetime.utcnow().strftime("%A, %B %-d, %Y")
+    today = datetime.utcnow().strftime("%A, %B %d, %Y").replace(" 0", " ")
     prompt = (
         f"Today is {today}. {PERIOD_INSTRUCTION['morning']} "
         "Write a concise, conversational paragraph — not a list.\n\n"
