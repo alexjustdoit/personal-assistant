@@ -53,6 +53,12 @@ todoist:
 govee:
   api_key: ""            # Govee Developer API key — developer.govee.com → Apply for API key
 
+claude_memory:
+  # Path to your iCloud-synced Claude Code memory folder
+  # Windows: C:\Users\YourName\Apple\Mobile Documents\com~apple~CloudDocs\.claude\projects\<project-folder>\memory
+  # Mac:     /Users/YourName/Library/Mobile Documents/com~apple~CloudDocs/.claude/projects/<project-folder>/memory
+  path: ""
+
 # Cloud provider API keys — leave blank if not using
 groq_api_key: ""         # Groq — console.groq.com (free tier, llama-3.3-70b)
 gemini_api_key: ""       # Google AI Studio — aistudio.google.com (free tier, use AI Studio key not Cloud Console)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""First-run setup wizard for Home Assistant."""
+"""First-run setup wizard for Personal Assistant."""
 
 import sys
 import yaml
@@ -199,7 +199,7 @@ def setup_notifications():
     header("Notifications  (ntfy — free, no account needed)")
     print("  Install the ntfy app on your phone, then subscribe to your topic.")
     print("  Pick any unique topic name — treat it like a password.")
-    topic = ask("ntfy topic name (e.g. home-assistant-abc123)") or ""
+    topic = ask("ntfy topic name (e.g. personal-assistant-abc123)") or ""
     url = ask("ntfy server URL", default="https://ntfy.sh")
     return {"notifications": {"ntfy_url": url, "ntfy_topic": topic}}
 
@@ -208,7 +208,7 @@ def setup_notifications():
 
 def main():
     print("\n" + "=" * 52)
-    print("  Home Assistant — Setup Wizard")
+    print("  Personal Assistant — Setup Wizard")
     print("=" * 52)
     print("\nThis wizard creates your config.yaml.")
     print("Press Enter to accept default values shown in [brackets].")

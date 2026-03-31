@@ -7,10 +7,10 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
-from backend.config import is_configured, CONFIG_PATH
+from backend.config import is_configured, CONFIG_PATH, config
 from backend.routers import chat, voice
 
-app = FastAPI(title="Home Assistant")
+app = FastAPI(title="Personal Assistant")
 
 frontend_path = Path(__file__).parent.parent / "frontend"
 
@@ -20,6 +20,11 @@ async def startup():
     if is_configured():
         from backend.services.scheduler import scheduler_service
         scheduler_service.start()
+
+        claude_mem_path = config.get("claude_memory", {}).get("path")
+        if claude_mem_path:
+            from backend.services.claude_memory import claude_memory_service
+            claude_memory_service.start(claude_mem_path)
 
 
 @app.on_event("shutdown")

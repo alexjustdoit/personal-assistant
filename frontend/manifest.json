@@ -1,7 +1,7 @@
 {
-  "name": "Home Assistant",
+  "name": "Personal Assistant",
   "short_name": "Assistant",
-  "description": "Your personal AI home assistant",
+  "description": "Your personal AI assistant",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#030712",

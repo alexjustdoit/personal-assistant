@@ -17,7 +17,7 @@ MEMORY_PATTERNS = [
     r"(?i)keep in mind (?:that )?(.+)",
 ]
 
-SYSTEM_BASE = """You are a helpful personal home assistant. You are concise, friendly, and direct.
+SYSTEM_BASE = """You are a helpful personal assistant. You are concise, friendly, and direct.
 When you don't know something, say so.
 When the user asks you to remember something, confirm that you've noted it."""
 
@@ -209,11 +209,17 @@ class MemoryService:
 
     # --- System prompt builder ---
 
-    def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None) -> str:
+    def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None, query: str | None = None) -> str:
         prompt = SYSTEM_BASE
         if memories:
             lines = "\n".join(f"- {m}" for m in memories)
             prompt += f"\n\nThings you know about the user:\n{lines}"
+        if query:
+            from backend.services.claude_memory import claude_memory_service
+            claude_mems = claude_memory_service.search(query)
+            if claude_mems:
+                lines = "\n".join(f"- {m}" for m in claude_mems)
+                prompt += f"\n\nContext from the user's work sessions:\n{lines}"
         if reminders:
             lines = "\n".join(
                 f"- {r['text']}" + (f" (due: {r['due_time']})" if r.get("due_time") else "")

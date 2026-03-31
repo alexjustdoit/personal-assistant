@@ -187,7 +187,7 @@ async def chat_websocket(websocket: WebSocket):
             # --- System prompt ---
             relevant_memories = memory_service.search_memories(user_message) if user_message else []
             pending_reminders = memory_service.get_pending_reminders()
-            system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders)
+            system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders, query=user_message)
 
             # --- Parallel: search + todoist detect ---
             from backend.services.search import search_enabled, web_search
