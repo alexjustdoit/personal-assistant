@@ -27,9 +27,10 @@ Config (config.yaml):
 import asyncio
 import email
 import imaplib
+import math
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from email.utils import parseaddr, parsedate_to_datetime
 
@@ -45,6 +46,20 @@ _PROMO_RE = re.compile(
     r"|no.reply|noreply|do.not.reply|donotreply|auto.?reply)\b",
     re.I,
 )
+
+# Importance scoring regexes
+_URGENT_RE = re.compile(
+    r"\b(urgent|asap|action required|important|deadline|meeting|invoice|contract"
+    r"|offer|interview|please|question)\b|\?",
+    re.I,
+)
+_AUTO_SENDER_RE = re.compile(
+    r"(noreply|no-reply|donotreply|do-not-reply|notifications?|alerts?|system"
+    r"|admin@|support@|info@|hello@|team@|automated)",
+    re.I,
+)
+_REPLY_RE = re.compile(r"^re\s*:", re.I)
+_FWD_RE = re.compile(r"^fwd?\s*:", re.I)
 
 # ----- In-memory cache -----
 
@@ -131,7 +146,7 @@ def _fetch_account(account: dict, fetch_hours: int, max_count: int) -> list[dict
         conn.select("INBOX", readonly=True)
 
         since = (datetime.now() - timedelta(hours=fetch_hours)).strftime("%d-%b-%Y")
-        _, data = conn.search(None, f'SINCE "{since}"')
+        _, data = conn.search(None, f'(UNSEEN SINCE "{since}")')
         uids = data[0].split() if data[0] else []
         uids = uids[-max_count:][::-1]  # most recent first, capped
 
@@ -153,10 +168,17 @@ def _fetch_account(account: dict, fetch_hours: int, max_count: int) -> list[dict
                 from_name, from_addr = parseaddr(msg.get("From", ""))
                 sender = _decode(from_name) if from_name else from_addr
 
+                date_dt = None
+                date_str = ""
                 try:
-                    date_str = parsedate_to_datetime(msg.get("Date", "")).strftime("%-I:%M %p")
+                    date_dt = parsedate_to_datetime(msg.get("Date", ""))
+                    if date_dt.tzinfo is None:
+                        date_dt = date_dt.replace(tzinfo=timezone.utc)
+                    else:
+                        date_dt = date_dt.astimezone(timezone.utc)
+                    date_str = date_dt.strftime("%I:%M %p").lstrip("0")
                 except Exception:
-                    date_str = ""
+                    pass
 
                 results.append({
                     "account": name,
@@ -164,6 +186,7 @@ def _fetch_account(account: dict, fetch_hours: int, max_count: int) -> list[dict
                     "from_addr": from_addr,
                     "subject": subject,
                     "date": date_str,
+                    "date_dt": date_dt,
                     "body": _body(msg),
                 })
             except Exception:
@@ -175,6 +198,42 @@ def _fetch_account(account: dict, fetch_hours: int, max_count: int) -> list[dict
     except Exception as e:
         print(f"[Email] {name}: {e}")
         return []
+
+
+# ----- Importance scoring -----
+
+def _importance_score(e: dict, now: datetime, fetch_hours: int) -> float:
+    """Score 0.0–1.5: importance heuristics (0–1) + recency bias (0–0.5)."""
+    subject = e.get("subject", "")
+    from_addr = e.get("from_addr", "")
+
+    importance = 0.0
+    # Active reply/forward chain — ongoing conversation
+    if _REPLY_RE.match(subject) or _FWD_RE.match(subject):
+        importance += 0.35
+    # Urgency/action keywords
+    if _URGENT_RE.search(subject):
+        importance += 0.25
+    # Personal sender (not automated system)
+    if not _AUTO_SENDER_RE.search(from_addr):
+        importance += 0.25
+    # Short subject — tends to be direct/personal
+    if len(subject) < 50:
+        importance += 0.10
+    # Has readable body (not empty HTML-only email)
+    if e.get("body"):
+        importance += 0.05
+    importance = min(importance, 1.0)
+
+    # Recency: linear decay over fetch window, contributes up to 0.5
+    date_dt = e.get("date_dt")
+    if date_dt:
+        age_hours = max(0.0, (now - date_dt).total_seconds() / 3600)
+        recency = max(0.0, 1.0 - age_hours / max(fetch_hours, 1)) * 0.5
+    else:
+        recency = 0.25  # unknown date — mid-range
+
+    return importance + recency
 
 
 # ----- Public API -----
@@ -207,6 +266,10 @@ async def fetch_emails(force: bool = False) -> list[dict]:
     for r in results:
         if isinstance(r, list):
             combined.extend(r)
+
+    now = datetime.now(timezone.utc)
+    fetch_hours_val = int(cfg.get("fetch_hours", 24))
+    combined.sort(key=lambda e: _importance_score(e, now, fetch_hours_val), reverse=True)
 
     _cache_set(combined)
     return combined
