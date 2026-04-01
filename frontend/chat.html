@@ -33,7 +33,11 @@
         + New Chat
       </button>
     </div>
-    <div id="chat-list" class="flex-1 overflow-y-auto overflow-x-hidden py-2">
+    <div class="px-3 pt-2 pb-1 flex-shrink-0">
+      <input id="chat-search" type="text" placeholder="Search chats…" autocomplete="off"
+        class="w-full bg-gray-800 text-gray-300 text-xs rounded-lg px-3 py-1.5 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 border border-gray-800" />
+    </div>
+    <div id="chat-list" class="flex-1 overflow-y-auto overflow-x-hidden py-1">
       <p class="text-gray-600 text-xs px-4 py-3">Loading chats…</p>
     </div>
   </aside>
@@ -94,6 +98,7 @@
             </svg>
           </button>
           <input id="input" type="text" placeholder="Ask me anything…" class="flex-1 bg-gray-800 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" autocomplete="off" />
+          <button id="stop-btn" class="hidden bg-gray-700 hover:bg-gray-600 text-gray-200 px-5 py-3 rounded-xl text-sm font-medium transition-colors flex-shrink-0">Stop</button>
           <button id="send-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">Send</button>
         </div>
       </div>

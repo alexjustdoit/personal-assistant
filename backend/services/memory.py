@@ -71,6 +71,12 @@ class MemoryService:
                     generated_at TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS chat_names (
+                    session_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -199,15 +205,61 @@ class MemoryService:
                     m.session_id,
                     MIN(m.timestamp) AS created_at,
                     MAX(m.timestamp) AS last_active,
-                    (SELECT content FROM messages
-                     WHERE session_id = m.session_id AND role = 'user'
-                     ORDER BY id LIMIT 1) AS name
+                    COALESCE(cn.name,
+                        (SELECT content FROM messages
+                         WHERE session_id = m.session_id AND role = 'user'
+                         ORDER BY id LIMIT 1)
+                    ) AS name
                 FROM messages m
+                LEFT JOIN chat_names cn ON m.session_id = cn.session_id
                 GROUP BY m.session_id
                 ORDER BY last_active DESC
             """).fetchall()
         return [
             {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2]}
+            for r in rows
+        ]
+
+    def delete_chat(self, session_id: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM chat_names WHERE session_id = ?", (session_id,))
+            conn.commit()
+
+    def rename_chat(self, session_id: str, name: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO chat_names (session_id, name) VALUES (?, ?)",
+                (session_id, name.strip()[:120]),
+            )
+            conn.commit()
+
+    def search_messages(self, query: str, limit: int = 20) -> list[dict]:
+        like = f"%{query}%"
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("""
+                SELECT DISTINCT
+                    m.session_id,
+                    COALESCE(cn.name,
+                        (SELECT content FROM messages
+                         WHERE session_id = m.session_id AND role = 'user'
+                         ORDER BY id LIMIT 1)
+                    ) AS chat_name,
+                    m.content,
+                    m.timestamp
+                FROM messages m
+                LEFT JOIN chat_names cn ON m.session_id = cn.session_id
+                WHERE m.content LIKE ?
+                ORDER BY m.timestamp DESC
+                LIMIT ?
+            """, (like, limit)).fetchall()
+        return [
+            {
+                "session_id": r[0],
+                "chat_name": r[1] or "New chat",
+                "snippet": r[2][:120],
+                "timestamp": r[3],
+            }
             for r in rows
         ]
 

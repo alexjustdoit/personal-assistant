@@ -5,10 +5,12 @@ import yaml
 import httpx
 from pathlib import Path
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
 from backend.config import is_configured, CONFIG_PATH, config
 from backend.routers import chat, voice
+
+_briefing_state: dict = {"status": "idle", "result": None}
 
 app = FastAPI(title="Personal Assistant")
 
@@ -131,6 +133,33 @@ async def get_chats():
     return {"chats": memory_service.get_chats()}
 
 
+@app.delete("/api/chats/{session_id}")
+async def delete_chat(session_id: str):
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.delete_chat, session_id)
+    return {"ok": True}
+
+
+@app.patch("/api/chats/{session_id}")
+async def rename_chat(session_id: str, request: Request):
+    data = await request.json()
+    name = (data.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.rename_chat, session_id, name)
+    return {"ok": True}
+
+
+@app.get("/api/search")
+async def search_chats(q: str = ""):
+    if not q or len(q) < 2:
+        return {"results": []}
+    from backend.services.memory import memory_service
+    results = await asyncio.to_thread(memory_service.search_messages, q)
+    return {"results": results}
+
+
 @app.get("/api/briefing/latest")
 async def get_latest_briefing():
     from backend.services.memory import memory_service
@@ -146,8 +175,36 @@ async def generate_briefing(request: Request):
         period = "morning"
     force = data.get("force", False)
     provider = data.get("provider") or None
+
+    # Return cached result immediately if available and not forcing
+    if not force and _briefing_state["status"] == "ready" and _briefing_state["result"]:
+        return _briefing_state["result"]
+
+    # Kick off background generation (idempotent — won't double-start)
+    if _briefing_state["status"] != "generating":
+        _briefing_state["status"] = "generating"
+        _briefing_state["result"] = None
+        asyncio.create_task(_run_briefing(period, force, provider))
+
+    return {"status": "generating"}
+
+
+async def _run_briefing(period: str, force: bool, provider: str | None):
     from backend.services.briefing import generate_on_demand_briefing
-    return await generate_on_demand_briefing(period, force=force, provider=provider)
+    try:
+        result = await generate_on_demand_briefing(period, force=force, provider=provider)
+        _briefing_state["status"] = "ready"
+        _briefing_state["result"] = result
+    except Exception as e:
+        _briefing_state["status"] = "error"
+        _briefing_state["result"] = None
+
+
+@app.get("/api/briefing/status")
+async def get_briefing_status():
+    if _briefing_state["status"] == "ready" and _briefing_state["result"]:
+        return _briefing_state["result"]
+    return {"status": _briefing_state["status"]}
 
 
 @app.get("/api/calendar/events")

@@ -54,12 +54,14 @@ const messagesEl = document.getElementById('messages');
 const welcomeEl = document.getElementById('welcome');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
+const stopBtn = document.getElementById('stop-btn');
 const micBtn = document.getElementById('mic-btn');
 const ttsToggle = document.getElementById('tts-toggle');
 const statusDot = document.getElementById('status-dot');
 const providerSelect = document.getElementById('provider-select');
 const chatTitle = document.getElementById('chat-title');
 const chatListEl = document.getElementById('chat-list');
+const chatSearchEl = document.getElementById('chat-search');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
@@ -114,52 +116,159 @@ function formatRelativeTime(isoString) {
   return date.toLocaleDateString();
 }
 
+function buildChatItem(chat) {
+  const isActive = chat.id === SESSION_ID;
+  const item = document.createElement('div');
+  item.className = `group relative flex items-center mx-1 rounded-lg ${
+    isActive ? 'bg-indigo-600/20 border border-indigo-600/30' : 'hover:bg-gray-800'
+  }`;
+
+  const btn = document.createElement('button');
+  btn.className = `flex-1 text-left px-3 py-2.5 rounded-lg transition-colors min-w-0 ${
+    isActive ? 'text-indigo-300' : 'text-gray-400 hover:text-gray-200'
+  }`;
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'truncate text-sm font-medium';
+  nameEl.textContent = chat.name || 'New chat';
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'text-xs mt-0.5 opacity-50 truncate';
+  timeEl.textContent = formatRelativeTime(chat.last_active);
+
+  btn.appendChild(nameEl);
+  btn.appendChild(timeEl);
+  if (!isActive) btn.addEventListener('click', () => switchChat(chat.id));
+
+  // Rename + delete actions — revealed on hover
+  const actions = document.createElement('div');
+  actions.className = 'flex items-center gap-0.5 pr-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0';
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'p-1 text-gray-600 hover:text-gray-400 rounded transition-colors';
+  renameBtn.title = 'Rename';
+  renameBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+  renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startInlineRename(chat, nameEl); });
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'p-1 text-gray-600 hover:text-red-400 rounded transition-colors';
+  deleteBtn.title = 'Delete chat';
+  deleteBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
+  deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteChatById(chat.id, isActive); });
+
+  actions.appendChild(renameBtn);
+  actions.appendChild(deleteBtn);
+  item.appendChild(btn);
+  item.appendChild(actions);
+  return item;
+}
+
+function startInlineRename(chat, nameEl) {
+  const original = nameEl.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = original;
+  input.className = 'text-sm font-medium bg-gray-700 text-gray-100 rounded px-1 py-0 w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const name = input.value.trim();
+    const newNameEl = document.createElement('div');
+    newNameEl.className = 'truncate text-sm font-medium';
+    newNameEl.textContent = name || original;
+    input.replaceWith(newNameEl);
+    if (name && name !== original) {
+      await fetch(`/api/chats/${chat.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (chat.id === SESSION_ID) chatTitle.textContent = name;
+      loadChatList();
+    }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = original; input.blur(); }
+  });
+}
+
+async function deleteChatById(sessionId, isActive) {
+  if (!confirm('Delete this chat?')) return;
+  await fetch(`/api/chats/${sessionId}`, { method: 'DELETE' });
+  if (isActive) newChat();
+  else loadChatList();
+}
+
 async function loadChatList() {
+  if (chatSearchEl && chatSearchEl.value.trim()) return; // don't overwrite search results
   try {
     const res = await fetch('/api/chats');
     const data = await res.json();
     const chats = data.chats || [];
-
     chatListEl.innerHTML = '';
-
     if (chats.length === 0) {
       chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No previous chats</p>';
       return;
     }
-
     for (const chat of chats) {
-      const isActive = chat.id === SESSION_ID;
-      const btn = document.createElement('button');
-      btn.className = `chat-list-item w-full text-left px-3 py-2.5 mx-1 rounded-lg transition-colors ${
-        isActive
-          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-600/30'
-          : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
-      }`;
-
-      const name = document.createElement('div');
-      name.className = 'truncate text-sm font-medium';
-      name.textContent = chat.name || 'New chat';
-
-      const time = document.createElement('div');
-      time.className = 'text-xs mt-0.5 opacity-50 truncate';
-      time.textContent = formatRelativeTime(chat.last_active);
-
-      btn.appendChild(name);
-      btn.appendChild(time);
-
-      if (!isActive) {
-        btn.addEventListener('click', () => switchChat(chat.id));
-      }
-
-      chatListEl.appendChild(btn);
-
-      if (isActive && chat.name) {
-        chatTitle.textContent = chat.name;
-      }
+      chatListEl.appendChild(buildChatItem(chat));
+      if (chat.id === SESSION_ID && chat.name) chatTitle.textContent = chat.name;
     }
   } catch {
     chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">Failed to load chats</p>';
   }
+}
+
+// --- Chat search ---
+
+let _searchTimeout = null;
+
+chatSearchEl.addEventListener('input', (e) => {
+  clearTimeout(_searchTimeout);
+  const q = e.target.value.trim();
+  if (!q) { loadChatList(); return; }
+  _searchTimeout = setTimeout(() => runChatSearch(q), 300);
+});
+
+chatSearchEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { chatSearchEl.value = ''; loadChatList(); }
+});
+
+async function runChatSearch(query) {
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    chatListEl.innerHTML = '';
+    if (!data.results || data.results.length === 0) {
+      chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No results</p>';
+      return;
+    }
+    for (const r of data.results) {
+      const btn = document.createElement('button');
+      btn.className = 'w-full text-left px-3 py-2.5 mx-1 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors';
+
+      const name = document.createElement('div');
+      name.className = 'truncate text-sm font-medium';
+      name.textContent = r.chat_name;
+
+      const snippet = document.createElement('div');
+      snippet.className = 'text-xs mt-0.5 text-gray-600 truncate';
+      snippet.textContent = r.snippet;
+
+      btn.appendChild(name);
+      btn.appendChild(snippet);
+      btn.addEventListener('click', () => {
+        chatSearchEl.value = '';
+        switchChat(r.session_id);
+      });
+      chatListEl.appendChild(btn);
+    }
+  } catch {}
 }
 
 // --- WebSocket ---
@@ -262,6 +371,8 @@ function finishStreaming() {
   }
   if (ttsEnabled) flushTTSBuffer();
   isStreaming = false;
+  sendBtn.classList.remove('hidden');
+  stopBtn.classList.add('hidden');
   setInputEnabled(true);
 }
 
@@ -370,6 +481,8 @@ function sendMessage() {
   const imageToSend = currentImageData;
   clearAttachedImage();
   isStreaming = true;
+  sendBtn.classList.add('hidden');
+  stopBtn.classList.remove('hidden');
   resetTTS();
   setInputEnabled(false);
   startAssistantBubble();
@@ -383,6 +496,16 @@ function sendMessage() {
 }
 
 sendBtn.addEventListener('click', sendMessage);
+stopBtn.addEventListener('click', () => {
+  // Close WebSocket to cancel the backend stream, then reconnect
+  if (socket) {
+    socket.onclose = null;
+    socket.close();
+    socket = null;
+  }
+  finishStreaming();
+  connect();
+});
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();

@@ -50,44 +50,151 @@ function formatRelativeTime(isoString) {
   return date.toLocaleDateString();
 }
 
+const chatListEl = document.getElementById('chat-list');
+const chatSearchEl = document.getElementById('chat-search');
+
+function buildHomeChatItem(chat) {
+  const item = document.createElement('div');
+  item.className = 'group relative flex items-center mx-1 rounded-lg hover:bg-gray-800';
+
+  const btn = document.createElement('button');
+  btn.className = 'flex-1 text-left px-3 py-2.5 rounded-lg transition-colors min-w-0 text-gray-400 hover:text-gray-200';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'truncate text-sm font-medium';
+  nameEl.textContent = chat.name || 'New chat';
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'text-xs mt-0.5 opacity-50 truncate';
+  timeEl.textContent = formatRelativeTime(chat.last_active);
+
+  btn.appendChild(nameEl);
+  btn.appendChild(timeEl);
+  btn.addEventListener('click', () => {
+    localStorage.setItem('active_session_id', chat.id);
+    window.location.href = '/chat';
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'flex items-center gap-0.5 pr-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0';
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'p-1 text-gray-600 hover:text-gray-400 rounded transition-colors';
+  renameBtn.title = 'Rename';
+  renameBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+  renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startHomeRename(chat, nameEl); });
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'p-1 text-gray-600 hover:text-red-400 rounded transition-colors';
+  deleteBtn.title = 'Delete';
+  deleteBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
+  deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteHomeChat(chat.id); });
+
+  actions.appendChild(renameBtn);
+  actions.appendChild(deleteBtn);
+  item.appendChild(btn);
+  item.appendChild(actions);
+  return item;
+}
+
+async function startHomeRename(chat, nameEl) {
+  const original = nameEl.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = original;
+  input.className = 'text-sm font-medium bg-gray-700 text-gray-100 rounded px-1 py-0 w-full focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function save() {
+    const name = input.value.trim();
+    const newEl = document.createElement('div');
+    newEl.className = 'truncate text-sm font-medium';
+    newEl.textContent = name || original;
+    input.replaceWith(newEl);
+    if (name && name !== original) {
+      await fetch(`/api/chats/${chat.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      loadChatList();
+    }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = original; input.blur(); }
+  });
+}
+
+async function deleteHomeChat(sessionId) {
+  if (!confirm('Delete this chat?')) return;
+  await fetch(`/api/chats/${sessionId}`, { method: 'DELETE' });
+  loadChatList();
+}
+
 async function loadChatList() {
-  const chatListEl = document.getElementById('chat-list');
+  if (chatSearchEl && chatSearchEl.value.trim()) return;
   try {
     const res = await fetch('/api/chats');
     const data = await res.json();
     const chats = data.chats || [];
-
     chatListEl.innerHTML = '';
-
     if (chats.length === 0) {
       chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No previous chats</p>';
       return;
     }
-
-    for (const chat of chats) {
-      const btn = document.createElement('button');
-      btn.className = 'chat-list-item w-full text-left px-3 py-2.5 mx-1 rounded-lg transition-colors text-gray-400 hover:bg-gray-800 hover:text-gray-200';
-
-      const name = document.createElement('div');
-      name.className = 'truncate text-sm font-medium';
-      name.textContent = chat.name || 'New chat';
-
-      const time = document.createElement('div');
-      time.className = 'text-xs mt-0.5 opacity-50 truncate';
-      time.textContent = formatRelativeTime(chat.last_active);
-
-      btn.appendChild(name);
-      btn.appendChild(time);
-      btn.addEventListener('click', () => {
-        localStorage.setItem('active_session_id', chat.id);
-        window.location.href = '/chat';
-      });
-
-      chatListEl.appendChild(btn);
-    }
+    for (const chat of chats) chatListEl.appendChild(buildHomeChatItem(chat));
   } catch {
     chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">Failed to load chats</p>';
   }
+}
+
+// --- Chat search (home) ---
+
+let _homeSearchTimeout = null;
+
+chatSearchEl.addEventListener('input', (e) => {
+  clearTimeout(_homeSearchTimeout);
+  const q = e.target.value.trim();
+  if (!q) { loadChatList(); return; }
+  _homeSearchTimeout = setTimeout(() => runHomeSearch(q), 300);
+});
+
+chatSearchEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { chatSearchEl.value = ''; loadChatList(); }
+});
+
+async function runHomeSearch(query) {
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    chatListEl.innerHTML = '';
+    if (!data.results || data.results.length === 0) {
+      chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No results</p>';
+      return;
+    }
+    for (const r of data.results) {
+      const btn = document.createElement('button');
+      btn.className = 'w-full text-left px-3 py-2.5 mx-1 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors';
+      const name = document.createElement('div');
+      name.className = 'truncate text-sm font-medium';
+      name.textContent = r.chat_name;
+      const snippet = document.createElement('div');
+      snippet.className = 'text-xs mt-0.5 text-gray-600 truncate';
+      snippet.textContent = r.snippet;
+      btn.appendChild(name);
+      btn.appendChild(snippet);
+      btn.addEventListener('click', () => {
+        localStorage.setItem('active_session_id', r.session_id);
+        window.location.href = '/chat';
+      });
+      chatListEl.appendChild(btn);
+    }
+  } catch {}
 }
 
 // --- Time period ---
@@ -518,6 +625,21 @@ function renderBriefing(data) {
 
 // --- Load briefing ---
 
+let _briefingPollInterval = null;
+
+function stopBriefingPoll() {
+  if (_briefingPollInterval) { clearInterval(_briefingPollInterval); _briefingPollInterval = null; }
+}
+
+function onBriefingReady(data) {
+  stopBriefingPoll();
+  document.getElementById('refresh-icon').classList.remove('spin');
+  renderBriefing(data);
+  refreshCalendarTile();
+  loadTasksTile();
+  loadEmailTile();
+}
+
 async function loadBriefing(force = false) {
   const period = getPeriod();
   document.getElementById('briefing-label').textContent = PERIOD_LABELS[period];
@@ -528,6 +650,7 @@ async function loadBriefing(force = false) {
 
   const icon = document.getElementById('refresh-icon');
   icon.classList.add('spin');
+  stopBriefingPoll();
 
   let data;
   try {
@@ -547,11 +670,26 @@ async function loadBriefing(force = false) {
     return;
   }
 
-  icon.classList.remove('spin');
-  renderBriefing(data);
-  // Always refresh calendar and tasks from live endpoints after render — briefing may be cached
-  refreshCalendarTile();
-  loadTasksTile();
+  // Background generation — poll until ready
+  if (data.status === 'generating') {
+    _briefingPollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/briefing/status');
+        const poll = await res.json();
+        if (poll.status === 'error') {
+          stopBriefingPoll();
+          icon.classList.remove('spin');
+          document.getElementById('briefing-loading').classList.add('hidden');
+          document.getElementById('briefing-error').classList.remove('hidden');
+        } else if (poll.status !== 'generating') {
+          onBriefingReady(poll);
+        }
+      } catch {}
+    }, 2000);
+    return;
+  }
+
+  onBriefingReady(data);
 }
 
 document.getElementById('briefing-refresh').addEventListener('click', () => loadBriefing(true));
@@ -689,5 +827,5 @@ async function loadEmailTile(force = false) {
 // --- Init ---
 
 setGreeting();
-loadProviders().then(() => loadBriefing().then(() => loadEmailTile()));
+loadProviders().then(() => loadBriefing());
 loadChatList();
