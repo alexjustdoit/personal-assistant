@@ -53,6 +53,25 @@ todoist:
 govee:
   api_key: ""            # Govee Developer API key — developer.govee.com → Apply for API key
 
+email:
+  # IMAP email fetching — supports multiple accounts (Gmail, Outlook, etc.)
+  # Gmail:   myaccount.google.com/apppasswords → create an App Password (requires 2FA)
+  # Outlook: use your regular password or an app password; host: outlook.office365.com
+  fetch_hours: 24        # how far back to look (default 24 hours)
+  max_per_account: 20   # max emails fetched per account (most recent first)
+  accounts: []
+  # accounts:
+  #   - name: "Gmail"
+  #     imap_host: imap.gmail.com
+  #     imap_port: 993
+  #     username: you@gmail.com
+  #     password: "your-app-password"
+  #   - name: "Outlook"
+  #     imap_host: outlook.office365.com
+  #     imap_port: 993
+  #     username: you@outlook.com
+  #     password: "your-password"
+
 claude_memory:
   # Optional — path to your Claude Code memory folder (iCloud-synced markdown files).
   # Ingested as supplementary context. Leave blank to disable.

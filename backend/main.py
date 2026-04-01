@@ -175,6 +175,25 @@ async def get_todoist_tasks():
     return {"enabled": True, "tasks": tasks}
 
 
+@app.get("/api/email/summary")
+async def get_email_summary(force: str = "false", provider: str = ""):
+    from backend.services.email_service import email_enabled, fetch_emails, summarize_emails
+    if not email_enabled():
+        return {"enabled": False}
+    emails = await fetch_emails(force=force.lower() == "true")
+    summary = await summarize_emails(emails, provider=provider or None)
+    account_counts = {}
+    for e in emails:
+        account_counts[e["account"]] = account_counts.get(e["account"], 0) + 1
+    return {
+        "enabled": True,
+        "count": len(emails),
+        "account_counts": account_counts,
+        "summary": summary,
+        "emails": [{"from": e["from"], "subject": e["subject"], "date": e["date"], "account": e["account"]} for e in emails[:10]],
+    }
+
+
 @app.get("/api/providers")
 async def get_providers():
     from backend.services.llm import llm_router

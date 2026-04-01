@@ -198,6 +198,7 @@ function buildConfig() {
     },
     todoist: { api_token: todoistToken },
     govee: { api_key: goveeKey },
+    email: { fetch_hours: 24, max_per_account: 20, accounts: [] },
     claude_memory: { path: '' },
     notes_folders: [],
     activity_tracking: {

@@ -26,6 +26,10 @@ _IGNORE_SITE_HINT = re.compile(
     r"\b(ignore|stop (logging|tracking|recording)|don'?t (log|track|record))\b",
     re.I,
 )
+_EMAIL_HINT = re.compile(
+    r"\b(email|emails|inbox|mail|messages?)\b",
+    re.I,
+)
 
 _SEARCH_SYSTEM = "You are a search router. Reply with JSON only, no explanation."
 _SEARCH_PROMPT = (
@@ -236,6 +240,7 @@ async def chat_websocket(websocket: WebSocket):
             from backend.services.govee import govee_enabled, execute_govee_intent
 
             from backend.services.activity_tracker import add_ignored_domain
+            from backend.services.email_service import email_enabled, fetch_emails
 
             detect_tasks = {}
             if user_message and search_enabled() and _SEARCH_HINT.search(user_message):
@@ -246,11 +251,14 @@ async def chat_websocket(websocket: WebSocket):
                 detect_tasks["govee"] = asyncio.create_task(_detect_govee(user_message))
             if user_message and _IGNORE_SITE_HINT.search(user_message):
                 detect_tasks["ignore_site"] = asyncio.create_task(_detect_ignore_site(user_message))
+            if user_message and email_enabled() and _EMAIL_HINT.search(user_message):
+                detect_tasks["email"] = asyncio.create_task(fetch_emails())
 
             search_result = None
             todoist_result = None
             govee_result = None
             ignore_site_result = None
+            email_result = None
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
@@ -261,6 +269,8 @@ async def chat_websocket(websocket: WebSocket):
                     govee_result = detect_tasks["govee"].result() if not detect_tasks["govee"].exception() else None
                 if "ignore_site" in detect_tasks:
                     ignore_site_result = detect_tasks["ignore_site"].result() if not detect_tasks["ignore_site"].exception() else None
+                if "email" in detect_tasks:
+                    email_result = detect_tasks["email"].result() if not detect_tasks["email"].exception() else None
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -316,6 +326,19 @@ async def chat_websocket(websocket: WebSocket):
                     system_prompt += f'\n\n[Activity] Added "{ignore_site_result}" to ignored domains and removed it from existing log files. It will no longer appear in any activity logs. Confirm to the user.'
                 else:
                     system_prompt += f'\n\n[Activity] "{ignore_site_result}" is already in the ignored domains list. Tell the user it was already ignored.'
+
+            # --- Email ---
+            if email_result is not None:
+                if email_result:
+                    lines = "\n".join(
+                        f"- [{e['account']}] From: {e['from']} | Subject: {e['subject']}" +
+                        (f" | {e['date']}" if e.get("date") else "") +
+                        (f"\n  {e['body'][:200]}" if e.get("body") else "")
+                        for e in email_result[:20]
+                    )
+                    system_prompt += f"\n\nRecent emails ({len(email_result)} total):\n{lines}"
+                else:
+                    system_prompt += "\n\n[Email] No recent emails found."
 
             # --- Save & build messages ---
             if user_message:

@@ -599,8 +599,95 @@ async function refreshCalendarTile() {
 const CALENDAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 setInterval(refreshCalendarTile, CALENDAR_REFRESH_MS);
 
+// --- Email tile ---
+
+function buildEmailTile(data) {
+  const tile = document.createElement('div');
+  tile.id = 'email-tile';
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
+
+  const header = document.createElement('div');
+  header.className = 'flex items-center justify-between mb-3';
+
+  const label = document.createElement('div');
+  label.className = 'text-xs font-semibold text-gray-500 uppercase tracking-wider';
+  const countLabel = Object.entries(data.account_counts || {})
+    .map(([acc, n]) => `${n} from ${acc}`)
+    .join(' · ') || `${data.count} email${data.count !== 1 ? 's' : ''}`;
+  label.textContent = `Email — ${countLabel}`;
+
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'text-gray-600 hover:text-gray-400 transition-colors p-0.5 rounded';
+  refreshBtn.title = 'Refresh emails';
+  refreshBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+  refreshBtn.addEventListener('click', () => loadEmailTile(true));
+
+  header.appendChild(label);
+  header.appendChild(refreshBtn);
+  tile.appendChild(header);
+
+  if (data.summary) {
+    const summary = document.createElement('p');
+    summary.className = 'text-sm text-gray-300 leading-relaxed mb-3';
+    summary.textContent = data.summary;
+    tile.appendChild(summary);
+  }
+
+  if (data.emails && data.emails.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'space-y-2 border-t border-gray-800 pt-3';
+    for (const e of data.emails.slice(0, 6)) {
+      const row = document.createElement('div');
+      row.className = 'flex items-baseline gap-2 min-w-0';
+
+      const from = document.createElement('span');
+      from.className = 'text-xs font-medium text-indigo-400 flex-shrink-0 max-w-[120px] truncate';
+      from.textContent = e.from;
+
+      const subj = document.createElement('span');
+      subj.className = 'text-sm text-gray-300 truncate';
+      subj.textContent = e.subject;
+
+      const time = document.createElement('span');
+      time.className = 'text-xs text-gray-600 flex-shrink-0 ml-auto';
+      time.textContent = e.date || '';
+
+      row.appendChild(from);
+      row.appendChild(subj);
+      if (e.date) row.appendChild(time);
+      list.appendChild(row);
+    }
+    tile.appendChild(list);
+  }
+
+  return tile;
+}
+
+async function loadEmailTile(force = false) {
+  try {
+    const provider = document.getElementById('provider-select')?.value || '';
+    const res = await fetch(`/api/email/summary?force=${force}&provider=${encodeURIComponent(provider)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.enabled || data.count === 0) return;
+
+    const tilesEl = document.getElementById('briefing-tiles');
+    if (!tilesEl || tilesEl.classList.contains('hidden')) return;
+
+    const existing = document.getElementById('email-tile');
+    const newTile = buildEmailTile(data);
+    if (existing) {
+      existing.parentNode.replaceChild(newTile, existing);
+    } else {
+      tilesEl.appendChild(newTile);
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
 // --- Init ---
 
 setGreeting();
-loadProviders().then(() => loadBriefing());
+loadProviders().then(() => loadBriefing().then(() => loadEmailTile()));
 loadChatList();
