@@ -137,7 +137,8 @@ async def _synthesize_rss_news(topics: list[str], provider: str | None = None) -
     summaries = []
     for i, (topic, articles) in enumerate(by_topic.items()):
         try:
-            summary = await _synthesize_topic(topic, articles, today, provider=provider)
+            from backend.services.rss_news import MAX_ARTICLES_IN_PROMPT
+            summary = await _synthesize_topic(topic, articles[:MAX_ARTICLES_IN_PROMPT], today, provider=provider)
         except Exception:
             # Quota/auth error — skip remaining topics rather than hammering the API
             summaries.extend([""] * (len(by_topic) - i))

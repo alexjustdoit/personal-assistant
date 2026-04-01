@@ -132,9 +132,15 @@ class LLMRouter:
 
     async def complete_briefing(self, messages: list[dict], provider: str | None = None) -> str:
         """Non-streaming completion using the configured briefing provider, or a given override."""
+        resolved = provider or self.briefing_provider
         result = ""
-        async for token in self.stream(messages, provider_override=provider or self.briefing_provider):
-            result += token
+        if resolved == "ollama" or resolved.startswith("ollama/"):
+            model = resolved.split("/", 1)[1] if "/" in resolved else self.model
+            async for token in self._stream_ollama(messages, model=model, num_predict=600):
+                result += token
+        else:
+            async for token in self.stream(messages, provider_override=resolved):
+                result += token
         return result.strip()
 
     async def _stream_ollama(self, messages: list[dict], model: str | None = None, num_predict: int = 400) -> AsyncGenerator[str, None]:

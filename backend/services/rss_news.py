@@ -47,8 +47,9 @@ FEED_LIBRARY: dict[str, list[str]] = {
 }
 
 MAX_ARTICLES_PER_FEED = 5
-MAX_SCRAPE_PER_TOPIC = 3   # how many articles per topic to scrape for full text
-SCRAPE_TEXT_LIMIT = 1500   # chars of article body to pass to the LLM
+MAX_SCRAPE_PER_TOPIC = 3    # how many articles per topic to scrape for full text
+MAX_ARTICLES_IN_PROMPT = 5  # cap articles sent to synthesis LLM (keeps context small for local models)
+SCRAPE_TEXT_LIMIT = 1000    # chars of article body to pass to the LLM (was 1500)
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; HomeAssistant/1.0)"}
 
