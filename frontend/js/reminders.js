@@ -81,6 +81,42 @@ function renderReminders(reminders) {
       body.appendChild(dueEl);
     }
 
+    // Snooze button + popover
+    const snoozeWrap = document.createElement('div');
+    snoozeWrap.className = 'relative flex-shrink-0';
+
+    const snoozeBtn = document.createElement('button');
+    snoozeBtn.className = 'opacity-0 group-hover:opacity-100 p-1 text-gray-700 hover:text-indigo-400 rounded transition-all';
+    snoozeBtn.title = 'Snooze';
+    snoozeBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
+    const snoozeMenu = document.createElement('div');
+    snoozeMenu.className = 'hidden absolute right-0 top-7 z-10 bg-gray-800 border border-gray-700 rounded-xl shadow-lg py-1 w-36';
+    [['15 min', 15], ['1 hour', 60], ['Tomorrow 9am', null]].forEach(([label, mins]) => {
+      const opt = document.createElement('button');
+      opt.className = 'w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition-colors';
+      opt.textContent = label;
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        snoozeMenu.classList.add('hidden');
+        doSnooze(r.id, mins, dueEl);
+      });
+      snoozeMenu.appendChild(opt);
+    });
+
+    snoozeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !snoozeMenu.classList.contains('hidden');
+      document.querySelectorAll('.snooze-menu-open').forEach(m => m.classList.add('hidden'));
+      if (!isOpen) {
+        snoozeMenu.classList.remove('hidden');
+        snoozeMenu.classList.add('snooze-menu-open');
+      }
+    });
+
+    snoozeWrap.appendChild(snoozeBtn);
+    snoozeWrap.appendChild(snoozeMenu);
+
     // Delete button
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'opacity-0 group-hover:opacity-100 p-1 text-gray-700 hover:text-red-400 rounded transition-all flex-shrink-0';
@@ -90,8 +126,47 @@ function renderReminders(reminders) {
 
     row.appendChild(completeBtn);
     row.appendChild(body);
+    row.appendChild(snoozeWrap);
     row.appendChild(deleteBtn);
     list.appendChild(row);
+  }
+
+  // Close open snooze menus on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.snooze-menu-open').forEach(m => {
+      m.classList.remove('snooze-menu-open');
+      m.classList.add('hidden');
+    });
+  });
+}
+
+async function doSnooze(id, mins, dueEl) {
+  let due;
+  if (mins === null) {
+    // Tomorrow 9am local time → UTC
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    due = tomorrow.toISOString();
+  } else {
+    due = new Date(Date.now() + mins * 60000).toISOString();
+  }
+  try {
+    await fetch(`/api/reminders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ due_time: due }),
+    });
+    // Update the due label
+    if (dueEl) {
+      const fmt = formatDue(due);
+      if (fmt) {
+        dueEl.className = `text-xs mt-0.5 ${fmt.overdue ? 'text-red-400' : 'text-gray-600'}`;
+        dueEl.textContent = fmt.label;
+      }
+    }
+  } catch {
+    // non-fatal
   }
 }
 

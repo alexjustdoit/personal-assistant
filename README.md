@@ -10,7 +10,8 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - **LLM routing** — Ollama (local/free) by default; optional Claude, OpenAI, Gemini, or Groq selectable at runtime
 - **Persistent memory** — remembers facts across conversations via ChromaDB; view and delete memories at `/memories`
 - **Morning briefings** — weather, calendar, news digest, email summary, and reminders delivered daily
-- **Reminders** — set reminders via chat or the `/reminders` page; fires ntfy push + browser notification when due
+- **Reminders** — set reminders via chat or the `/reminders` page; snooze (15m/1h/tomorrow); fires ntfy push + browser notification when due
+- **Proactive follow-ups** — if you mention a future commitment in chat ("I need to call the dentist"), the assistant quietly saves it as a reminder
 - **Weekly digest** — automated weekly wrap-up (completed tasks, open reminders, news) via ntfy
 - **Push notifications** — reminders via ntfy to phone or browser
 - **Smart home** — Govee light control via chat (on/off, brightness, color, color temperature)

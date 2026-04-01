@@ -195,6 +195,11 @@ class MemoryService:
         """Create a reminder outside of a chat session (e.g. from the reminders UI)."""
         self.save_reminder("ui", text, due_time)
 
+    def update_reminder_due(self, reminder_id: int, due_time: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE reminders SET due_time = ? WHERE id = ?", (due_time, reminder_id))
+            conn.commit()
+
     def get_week_reminders(self, days: int = 7) -> dict:
         cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
         with sqlite3.connect(DB_PATH) as conn:

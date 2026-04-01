@@ -301,6 +301,16 @@ async def create_reminder(request: Request):
     return {"ok": True}
 
 
+@app.patch("/api/reminders/{reminder_id}")
+async def update_reminder(reminder_id: int, request: Request):
+    data = await request.json()
+    due_time = data.get("due_time")
+    if due_time is not None:
+        from backend.services.memory import memory_service
+        await asyncio.to_thread(memory_service.update_reminder_due, reminder_id, due_time)
+    return {"ok": True}
+
+
 @app.post("/api/reminders/{reminder_id}/complete")
 async def complete_reminder(reminder_id: int):
     from backend.services.memory import memory_service

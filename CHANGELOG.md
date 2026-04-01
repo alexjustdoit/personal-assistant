@@ -8,8 +8,23 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Proactive memory suggestions** — surface follow-ups based on things mentioned earlier ("you mentioned booking a dentist appointment last week — did you get around to it?")
 - **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
+
+---
+
+## [0.13] — 2026-03-31
+
+### Added — Reminder snooze
+- Hover any reminder on `/reminders` to reveal a clock (snooze) button alongside delete
+- Snooze options: 15 min, 1 hour, Tomorrow 9am — updates the due time in place without a page reload
+- `PATCH /api/reminders/{id}` endpoint accepts `{due_time: ISO string}`
+- `memory_service.update_reminder_due(id, due_time)` method
+
+### Added — Proactive follow-up suggestions
+- When a user message contains an implied future commitment ("I need to call the dentist", "I'll send that report") without explicitly asking for a reminder, the assistant automatically saves it as a pending reminder
+- Uses `_FOLLOWUP_HINT` pattern + fast LLM extraction (detection model) to filter for genuine actionable commitments
+- Skips if user already used an explicit "remind me / set a reminder" phrase (handled by existing reminder flow)
+- Fires a browser notification confirming the reminder was captured
 
 ---
 

@@ -30,6 +30,11 @@ _EMAIL_HINT = re.compile(
     r"\b(email|emails|inbox|mail|messages?)\b",
     re.I,
 )
+_FOLLOWUP_HINT = re.compile(
+    r"\b(i'?ll\b|i will\b|i need to\b|i should\b|i'?m going to\b|i have to\b|i plan to\b|i'?ve been meaning to\b|don'?t let me forget)\b",
+    re.I,
+)
+
 _SESSION_HINT = re.compile(
     r"\b(session|last week|this week|what did (i|we) (work on|do|build|implement|fix|add)|"
     r"what (have i|was i|were we) (working on|doing)|recent work|"
@@ -186,6 +191,30 @@ async def _detect_ignore_site(message: str) -> str | None:
     return None
 
 
+async def _check_for_followups(user_message: str):
+    """If the user mentioned a future commitment not flagged as a reminder, save it and notify."""
+    try:
+        response = await llm_router.complete_detect([
+            {"role": "system", "content": "Extract future task commitments. Reply with JSON only."},
+            {"role": "user", "content": (
+                f'User message: "{user_message}"\n\n'
+                "If the user mentioned a specific concrete task they plan to do in the future "
+                "(not a question, not already done, not vague), extract it as a short phrase (under 10 words). "
+                'JSON: {"task": "short task"} or {"task": null}'
+            )},
+        ])
+        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            task = (data.get("task") or "").strip()
+            if task and len(task) > 5:
+                await asyncio.to_thread(memory_service.create_reminder, task)
+                from backend.services.notification_queue import push as push_browser
+                push_browser("Reminder saved", task)
+    except Exception:
+        pass
+
+
 async def _auto_extract_memories(message: str):
     try:
         response = await llm_router.complete([
@@ -230,7 +259,8 @@ async def chat_websocket(websocket: WebSocket):
                     asyncio.create_task(_auto_extract_memories(user_message))
 
             # --- Reminders ---
-            if user_message and REMINDER_TRIGGER.search(user_message):
+            _explicit_reminder = bool(user_message and REMINDER_TRIGGER.search(user_message))
+            if _explicit_reminder:
                 reminder = await extract_reminder(user_message)
                 if reminder:
                     due_time = parse_due_time(reminder.get("time_str"))
@@ -391,6 +421,10 @@ async def chat_websocket(websocket: WebSocket):
                 history.append({"role": "assistant", "content": full_response})
                 memory_service.save_message(session_id, "assistant", full_response)
                 await websocket.send_text(json.dumps({"type": "done"}))
+
+                # Proactive follow-up: save implied commitments as reminders
+                if user_message and not _explicit_reminder and _FOLLOWUP_HINT.search(user_message):
+                    asyncio.create_task(_check_for_followups(user_message))
 
             except Exception as e:
                 await websocket.send_text(json.dumps({"type": "error", "content": str(e)}))
