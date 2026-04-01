@@ -4,15 +4,19 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 
 ## Features
 
-- **Chat UI** — browser-based, accessible from desktop, laptop, or phone
-- **Voice input** — push-to-talk via browser mic on any device
-- **Streaming responses** — tokens stream in real time
-- **LLM routing** — Ollama (local/free) by default, optional Claude or OpenAI for quality tasks
-- **Provider selector** — switch between LLMs at runtime via dropdown in the UI
-- **Persistent memory** — remembers context and things you tell it *(Phase 3)*
-- **Morning briefings** — weather, calendar, and news digest delivered daily *(Phase 4)*
-- **Push notifications** — reminders via ntfy to phone or browser *(Phase 4)*
+- **Chat UI** — browser-based, accessible from desktop, laptop, or phone; markdown rendering, message timestamps, export to Markdown
+- **Voice input** — push-to-talk via browser mic on any device (faster-whisper STT + Kokoro TTS, both local)
+- **Streaming responses** — tokens stream in real time with a stop button to cancel mid-response
+- **LLM routing** — Ollama (local/free) by default; optional Claude, OpenAI, Gemini, or Groq selectable at runtime
+- **Persistent memory** — remembers facts across conversations via ChromaDB; view and delete memories at `/memories`
+- **Morning briefings** — weather, calendar, news digest, email summary, and reminders delivered daily
+- **Push notifications** — reminders via ntfy to phone or browser
 - **Smart home** — Govee light control via chat (on/off, brightness, color, color temperature)
+- **Email** — unread emails ranked by importance surfaced in the home dashboard and chat
+- **Activity tracking** — passive Windows browser/app activity logged as context; Mac agent syncs via iCloud
+- **Work session history** — ask "what did I work on last week?" and the assistant reads your Claude Code session files
+- **Multi-chat** — full conversation history, per-chat rename/archive/delete, and sidebar search
+- **Quick chat** — type a message on the home page and go straight into a new conversation
 
 ## Requirements
 
@@ -253,44 +257,93 @@ You can target devices by name ("the bedroom light") or say "all" / "all lights"
 
 > **Rate limit:** The free Developer API tier allows ~100 requests/day. The device list is cached for 1 hour to minimize API calls — each control action consumes one request.
 
+## Email
+
+Fetch unread emails from any IMAP server (Gmail, Outlook, etc.) and surface them in the home dashboard and via chat.
+
+### Setup
+
+Add accounts to `config.yaml`:
+
+```yaml
+email:
+  fetch_hours: 24        # look back this many hours for unread mail
+  max_per_account: 20
+  accounts:
+    - server: imap.gmail.com
+      port: 993
+      username: you@gmail.com
+      password: your-app-password   # Gmail: use an App Password, not your main password
+    - server: outlook.office365.com
+      port: 993
+      username: you@outlook.com
+      password: your-password
+```
+
+**Gmail App Password:** Google Account → Security → 2-Step Verification → App passwords. Generate one for "Mail".
+
+Emails are ranked by importance (reply chains, urgency keywords, personal sender, recency) before display. Only unread emails are fetched.
+
+## Personal Memory
+
+The assistant remembers facts across all conversations. Ask it to remember something explicitly, or it will extract facts automatically from your messages in the background.
+
+To view and delete what it knows about you, go to `/memories` (brain icon in the home header).
+
+## Work Session History
+
+If you use Claude Code, the assistant can answer questions about your past work sessions — "what did I work on last week?", "what's the status of TAM Copilot?" — by reading `~/.claude/sessions/*.md` automatically.
+
+No configuration needed if your session files are in the default location.
+
 ## Project Structure
 
 ```
 personal-assistant/
 ├── backend/
-│   ├── main.py               # FastAPI app entry point
+│   ├── main.py               # FastAPI app — all HTTP routes
 │   ├── config.py             # Config loader
 │   ├── routers/
-│   │   ├── chat.py           # WebSocket chat endpoint
+│   │   ├── chat.py           # WebSocket chat endpoint + intent detection
 │   │   └── voice.py          # STT / TTS endpoints
 │   └── services/
-│       ├── llm.py            # LLM router (Ollama / Claude / OpenAI)
-│       ├── memory.py         # Conversation history + ChromaDB personal memory
+│       ├── llm.py            # LLM router (Ollama / Claude / OpenAI / Gemini / Groq)
+│       ├── memory.py         # Conversation history, ChromaDB memory, reminders, chat management
+│       ├── briefing.py       # Morning/evening briefing assembly + LLM narration
+│       ├── scheduler.py      # APScheduler (briefing cron + reminder checks)
+│       ├── email_service.py  # IMAP email fetching + importance ranking
+│       ├── activity_tracker.py  # Windows browser/app activity logger
+│       ├── notes_watcher.py  # Watchdog file watcher for notes folders
+│       ├── claude_memory.py  # Claude Code memory file indexer
+│       ├── sessions_reader.py   # Reads ~/.claude/sessions/*.md for work history queries
+│       ├── govee.py          # Govee Developer API client
+│       ├── todoist.py        # Todoist REST API client
+│       ├── weather.py        # OpenWeatherMap
+│       ├── news.py           # RSS news fetcher + LLM synthesis
+│       ├── calendar_service.py  # iCal URL parser
+│       ├── search.py         # Tavily web search
 │       ├── stt.py            # Speech-to-text (faster-whisper)
 │       ├── tts.py            # Text-to-speech (Kokoro)
-│       ├── weather.py        # OpenWeatherMap
-│       ├── news.py           # Tavily news search
-│       ├── calendar_service.py  # iCal URL parser
-│       ├── notifications.py  # ntfy push notifications
-│       ├── briefing.py       # Morning briefing assembly
-│       └── scheduler.py      # APScheduler (briefing + reminders)
+│       └── notifications.py  # ntfy push notifications
 ├── frontend/
-│   ├── home.html             # Landing page (greeting, briefing, recent chats)
-│   ├── chat.html             # Chat view with sidebar
+│   ├── home.html             # Dashboard (briefing, quick-chat, sidebar)
+│   ├── chat.html             # Chat view with collapsible sidebar
+│   ├── memories.html         # Personal memory viewer (/memories)
 │   ├── setup.html            # First-run setup wizard
 │   ├── css/style.css
 │   └── js/
 │       ├── home.js
 │       ├── chat.js
+│       ├── memories.js
 │       └── setup.js
 ├── mac-agent/                # Mac activity tracker (feeds context via iCloud)
 │   ├── agent.py              # Polls browser history + active app, writes markdown logs
-│   ├── config.yaml.example   # Config template (log_folder, poll_interval, ignored_domains)
-│   ├── install.sh            # Installs as a launchd job (runs every N minutes)
+│   ├── config.yaml.example
+│   ├── install.sh            # Installs as a launchd job
 │   └── uninstall.sh
 ├── data/                     # gitignored — conversations, memory, chroma DB
 ├── run.py                    # Start the server
-├── config.yaml.example       # Reference config (copy to config.yaml)
+├── config.yaml.example       # Reference config
 └── requirements.txt
 ```
 
@@ -328,7 +381,10 @@ The app recreates `data/` automatically on next start.
 
 - [x] Phase 1 — Chat UI, streaming, LLM routing
 - [x] Phase 2 — Voice (faster-whisper STT, Kokoro TTS)
-- [x] Phase 3 — Persistent memory (ChromaDB)
-- [x] Phase 4 — Proactive layer (briefings, reminders, calendar, news)
+- [x] Phase 3 — Persistent memory (ChromaDB + memory management UI)
+- [x] Phase 4 — Proactive layer (briefings, reminders, calendar, news, email)
 - [x] Phase 5 — Onboarding wizard (in-browser setup, home page, multi-chat sidebar)
 - [x] Phase 6 — Windows service (auto-start, gaming toggle)
+- [x] Phase 7 — Smart home (Govee lights), Todoist tasks, image understanding
+- [x] Phase 8 — Activity tracking (Windows + Mac agent via iCloud), notes watcher, Claude Code memory
+- [x] Phase 9 — Chat polish (markdown, timestamps, stop button, export, archive, quick-chat, work history query)

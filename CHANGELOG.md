@@ -8,39 +8,152 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
-- **Notion session summaries** — Fetch Claude Code session summaries from a Notion database; answer questions like "what did I work on last week?" or "what decisions did I make on the TAM Copilot project?" via chat
-- **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
-- **Govee lights / smart home control** — Voice and chat control of Govee devices (bulbs, lamps, air purifier) via Govee Developer API; LLM intent detection routes commands to device actions
-- **Email summarization** — Connect to Gmail/Outlook; summarize unread emails in briefing or on demand; spam filtering/cleanup step before surfacing to LLM; support multiple inboxes
-- **Image understanding** — Allow image uploads or pastes in chat; route to vision-capable providers (Claude, Gemini) for analysis, document reading, error diagnosis
+- **Notification for due reminders** — browser notification or ntfy push when a reminder fires
+- **Memory search/filter** — search bar on the /memories page for users with many stored facts
+- **Proactive memory suggestions** — surface follow-ups based on things mentioned earlier ("you mentioned booking a dentist appointment last week — did you get around to it?")
+- **Weekly digest** — summary of the week delivered via ntfy on a configured day
+- **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
 
 ---
 
-### Smart home — Govee integration
-Control Govee devices via the Govee Developer API. Planned device support (subject to API compatibility — verify at developer.govee.com):
-- **H6008 smart bulbs** — on/off, brightness, color temperature (likely supported)
-- **RGBIC Lyra floor lamp** — on/off, brightness, color/scene control (RGBIC support varies by model)
-- **Govee Life Smart air purifier** — on/off, mode/fan speed (appliance API support uncertain)
+## [0.11] — 2026-03-31
 
-Control via chat ("turn off the bedroom light", "set the lamp to red") using LLM intent detection and Govee API calls.
+### Added — Archive chats
+- Soft-archive any chat from the sidebar — hover to reveal archive icon (alongside rename/delete)
+- Archived chats hidden from the main list; collapsible "Archived (n)" section at the bottom of both sidebars (home and chat)
+- `PATCH /api/chats/{session_id}` extended to accept `{archived: true/false}` in addition to `{name}`
+- `chat_names` table: added `archived INTEGER DEFAULT 0` column with automatic migration on startup
 
-### UI quality of life
-- Thinking indicator — show a subtle animation while waiting for the first token
-- Markdown rendering in chat bubbles — code blocks, bold, lists rendered properly
-- Mobile layout improvements — better spacing and touch targets on iPhone
+### Added — Memory management UI
+- `/memories` page listing all personal facts stored in ChromaDB
+- Facts sorted newest first with date; hover any row to reveal a delete button
+- Instant delete without confirmation — deletes the ChromaDB vector by ID
+- `GET /api/memories` — returns all stored memories with IDs and timestamps
+- `DELETE /api/memories/{id}` — deletes a specific memory by ChromaDB ID
+- Brain icon link to `/memories` added to home page header
 
-### Expanded proactive layer
-- Proactive memory suggestions — assistant surfaces follow-ups based on things you've mentioned ("you mentioned booking a dentist appointment last week — did you get around to it?")
-- Weekly digest — summary of the week delivered via ntfy on a configured day
-- Reminder snooze — ntfy action buttons to snooze a reminder by 30 minutes or 1 hour
+### Added — Session/work history query in chat
+- `backend/services/sessions_reader.py` reads `~/.claude/sessions/*.md` (per-project Claude Code session files)
+- Keyword-scores session files against the query + recency; injects the top N excerpts into the system prompt
+- Triggered when user asks things like "what did I work on last week?", "what's the status of TAM Copilot?", "what did we build last session?"
+- No external API needed — reads local files
 
-### Runtime config editing
-Allow the assistant to update certain config values (e.g. news topics) through conversation. Requires a config write endpoint and live reload of affected services without restart.
+### Added — Setup wizard test buttons
+- **Govee test** — "Test connection" button under Govee API key; hits Govee Developer API, reports device count; `POST /api/setup/test-govee`
+- **Email test** — "Test first account" button under email section; does IMAP SSL login, reports success or error message; `POST /api/setup/test-email`
 
-### Portfolio / showcase
-- `DEMO.md` with screenshots and feature walkthrough
-- Demo video or GIF showing voice input, morning briefing, and smart home control
+### Added — Home page quick-chat
+- Persistent input bar at the bottom of the home page — type a message and hit Chat to open a new conversation with it pre-filled and auto-sent
+- Uses `localStorage.pending_message` handoff: home stores it, chat.js reads + clears + sends after socket opens
+- Avoids flicker/double-send — polls until WebSocket is open before sending
+
+### Added — Independent reminders tile
+- `GET /api/reminders` endpoint returns all pending reminders (globally, not session-scoped)
+- `loadRemindersTile()` in home.js fetches and renders reminders independently of the briefing — always up to date after briefing loads
+
+---
+
+## [0.10] — 2026-03-31
+
+### Added — Markdown rendering in chat
+- `marked.js` (v9) added to chat.html — renders assistant responses as HTML
+- During streaming: textContent used for performance; on `finishStreaming()`: full markdown parsed and rendered
+- CSS: comprehensive markdown styles for headings, lists, blockquotes, code blocks, tables, links, horizontal rules
+
+### Added — Message timestamps
+- `get_history()` now returns `timestamp` field from SQLite
+- `appendMessage()` accepts optional timestamp; renders below bubble in `text-gray-600`
+- User messages stamped with `new Date()` on send; assistant messages stamped when `finishStreaming()` runs
+- History load passes stored timestamps so all past messages show original time
+
+### Added — Briefing badge on chat page
+- Pulsing indigo dot appears on the Home link in the chat sidebar when a briefing is generating in the background
+- `checkBriefingBadge()` polls `/api/briefing/status` on load and every 3s while status is "generating"
+
+### Added — Chat export
+- Export button in chat header (download icon) — fetches full history, formats as Markdown with labels and timestamps, triggers file download
+- File named after the current chat title, e.g. `my-chat-title.md`
+
+### Added — Email section in setup wizard
+- Dynamic IMAP account blocks in step 3 — add/remove multiple accounts
+- Fields: IMAP server, port (default 993), email address, password
+- `buildConfig()` collects all account blocks into `email.accounts[]`, filtering blanks
+
+---
+
+## [0.9] — 2026-03-31
+
+### Added — Email summarization
+- `backend/services/email_service.py` — IMAP SSL client supporting multiple accounts (Gmail, Outlook, etc.)
+- Fetches unread emails from the last N hours; importance-scored and ranked before display
+- Importance scoring (heuristic, no LLM): reply chains (+0.35), urgency keywords (+0.25), personal sender (+0.25), short subject (+0.10), has body (+0.05), plus recency bias up to +0.5
+- 15-minute cache (force-refresh available)
+- Home page email tile: shows summary + up to 6 emails ranked by importance; refresh button
+- Chat integration: email context injected into system prompt when "email/inbox/mail" detected in message
+- `GET /api/email/summary?force=&provider=` endpoint
+
+### Added — Stop button
+- "Stop" button appears in chat footer while a response is streaming; "Send" is hidden
+- Clicking Stop closes the WebSocket (triggers `WebSocketDisconnect` on the server, cancelling the Ollama stream), calls `finishStreaming()`, then reconnects immediately
+- Server-side: no changes needed — WS disconnect is the cancellation signal
+
+### Added — Delete and rename chats
+- Hover any chat in either sidebar to reveal pencil (rename) and trash (delete) icons
+- Inline rename: replaces name with a text input, saves on blur or Enter, cancels on Escape
+- Delete: confirmation dialog, then `DELETE /api/chats/{session_id}` — if deleting the active chat, starts a new session
+- `chat_names` SQLite table stores custom names; `get_chats()` uses `COALESCE(cn.name, first_user_message)`
+- `DELETE /api/chats/{id}` and `PATCH /api/chats/{id}` API endpoints
+
+### Added — Background briefing generation
+- `POST /api/briefing/generate` returns immediately: if cached result exists returns it, otherwise kicks off `asyncio.create_task(_run_briefing(...))` and returns `{"status": "generating"}`
+- `GET /api/briefing/status` returns current status or full result when ready
+- Home page polls status every 2s when status is "generating" — navigating away no longer kills generation
+- Module-level `_briefing_state` dict tracks status/result; resets on server restart
+
+### Added — Chat search
+- Search input in sidebar on both home and chat pages
+- `GET /api/search?q=` does SQL LIKE across all messages; returns chat name, snippet, session ID
+- 300ms debounce on input; Escape clears and restores chat list
+- Clicking a result switches to that chat
+
+### Added — Shared ignored domains sync (Windows ↔ Mac)
+- `ignored_domains.txt` written to the iCloud log folder when a domain is ignored on Windows
+- Mac agent reads the shared file in addition to its own config
+- Domains stay in sync across machines without any networking
+
+### Fixed — Windows config path documentation
+- All path examples in `config.yaml.example` changed to forward slashes — work natively on Windows, no double-backslash confusion
+
+---
+
+## [0.8] — 2026-03-31
+
+### Added — Notes watcher
+- `backend/services/notes_watcher.py` — watchdog-based file watcher for local and iCloud folders
+- Indexes `.md` and `.txt` files into a searchable in-memory store with TF-IDF-style scoring
+- Relevant snippets injected into system prompt when content matches the user's query
+- `notes_folders` config key: list of directories to watch
+
+### Added — Windows passive activity tracker
+- `backend/services/activity_tracker.py` — reads Chrome and Edge history SQLite DBs (copies before reading), samples active window via ctypes
+- Runs every 30 minutes via APScheduler; writes markdown snapshots to configured log folder
+- End-of-day LLM synthesis at configurable time (default 22:00) — summarises the day's snapshots into a single note
+- Activity logs picked up automatically by notes_watcher and used as assistant context
+- Chat command to ignore a domain: "stop logging LinkedIn" — detected by LLM, removes domain from existing logs retroactively
+- `activity_tracking` config section with `enabled`, `log_folder`, `poll_interval_minutes`, `eod_summary_time`, `ignored_domains`
+
+---
+
+## [0.7] — 2026-03-31
+
+### Added — Claude Code memory integration
+- `backend/services/claude_memory.py` — watchdog watcher for Claude Code memory files (`~/.claude/projects/.../memory/*.md`)
+- Indexed into ChromaDB alongside personal memories; injected into system prompt as "Context from Claude Code memory files"
+- `claude_memory.path` config key points to the memory directory
+- Allows the assistant to answer questions about Claude project context, user preferences, and past decisions captured by Claude Code's memory system
+
+### Changed — Renamed to Personal Assistant
+- Project renamed from "Home Assistant" to "Personal Assistant" throughout
 
 ---
 
