@@ -163,6 +163,20 @@ function buildChatItem(chat) {
   const actions = document.createElement('div');
   actions.className = 'flex items-center gap-0.5 pr-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0';
 
+  const pinBtn = document.createElement('button');
+  pinBtn.className = `p-1 rounded transition-colors ${chat.pinned ? 'text-indigo-400 opacity-100' : 'text-gray-600 hover:text-indigo-400 opacity-0 group-hover:opacity-100'}`;
+  pinBtn.title = chat.pinned ? 'Unpin' : 'Pin';
+  pinBtn.innerHTML = `<svg class="w-3 h-3" fill="${chat.pinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>`;
+  pinBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await fetch(`/api/chats/${chat.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: !chat.pinned }),
+    });
+    loadChatList();
+  });
+
   const renameBtn = document.createElement('button');
   renameBtn.className = 'p-1 text-gray-600 hover:text-gray-400 rounded transition-colors';
   renameBtn.title = 'Rename';
@@ -183,6 +197,7 @@ function buildChatItem(chat) {
   deleteBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
   deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteChatById(chat.id, isActive); });
 
+  actions.appendChild(pinBtn);
   actions.appendChild(renameBtn);
   actions.appendChild(archiveBtn);
   actions.appendChild(deleteBtn);
@@ -251,6 +266,8 @@ async function loadChatList() {
     const chats = data.chats || [];
     const active = chats.filter(c => !c.archived);
     const archived = chats.filter(c => c.archived);
+    const pinned = active.filter(c => c.pinned);
+    const unpinned = active.filter(c => !c.pinned);
 
     chatListEl.innerHTML = '';
 
@@ -262,6 +279,17 @@ async function loadChatList() {
     for (const chat of active) {
       chatListEl.appendChild(buildChatItem(chat));
       if (chat.id === SESSION_ID && chat.name) chatTitle.textContent = chat.name;
+    }
+
+    // Divider after pinned chats
+    if (pinned.length > 0 && unpinned.length > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'mx-3 my-1 border-t border-gray-800/60';
+      // Insert after the last pinned item (index pinned.length - 1)
+      const items = chatListEl.querySelectorAll(':scope > div');
+      if (items[pinned.length - 1]) {
+        items[pinned.length - 1].after(divider);
+      }
     }
 
     if (archived.length > 0) {
@@ -357,6 +385,21 @@ function connect() {
 
   socket.onclose = () => {
     statusDot.classList.replace('bg-green-500', 'bg-red-500');
+    if (isStreaming) {
+      const hadContent = !!currentText;
+      if (hadContent) {
+        finishStreaming();
+      } else {
+        currentBubble?.parentElement?.remove();
+        currentBubble = null;
+        currentText = '';
+        isStreaming = false;
+        sendBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        setInputEnabled(true);
+      }
+      appendError('Connection lost — please try again.');
+    }
     setTimeout(connect, 3000);
   };
 
@@ -385,6 +428,8 @@ function connect() {
     } else if (data.type === 'title') {
       chatTitle.textContent = data.title;
       loadChatList();
+    } else if (data.type === 'context') {
+      if (data.items && data.items.length > 0) appendContextBadge(data.items);
     } else if (data.type === 'done') {
       finishStreaming();
       loadChatList(); // refresh names after first assistant reply
@@ -575,6 +620,18 @@ function appendError(message) {
   bubble.textContent = `Error: ${message}`;
   wrapper.appendChild(bubble);
   messagesEl.appendChild(wrapper);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function appendContextBadge(items) {
+  const el = document.createElement('div');
+  el.className = 'flex justify-start px-1 mb-1';
+  const badge = document.createElement('span');
+  badge.className = 'text-xs text-gray-700 flex items-center gap-1';
+  badge.innerHTML = `<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+  badge.appendChild(document.createTextNode(items.join(' · ')));
+  el.appendChild(badge);
+  messagesEl.appendChild(el);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 

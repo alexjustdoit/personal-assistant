@@ -501,17 +501,34 @@ function buildTasksTile(tasks) {
 
   for (const task of tasks) {
     const row = document.createElement('div');
-    row.className = 'flex items-start gap-2.5';
+    row.className = 'flex items-start gap-2.5 group/task';
 
-    const dot = document.createElement('span');
-    dot.className = 'text-indigo-500 text-xs mt-1 flex-shrink-0';
-    dot.textContent = '●';
+    const completeBtn = document.createElement('button');
+    completeBtn.className = 'w-4 h-4 rounded-full border-2 border-gray-700 hover:border-green-500 flex-shrink-0 mt-0.5 transition-colors';
+    completeBtn.title = 'Mark complete';
+    completeBtn.addEventListener('click', async () => {
+      row.style.opacity = '0.4';
+      row.style.pointerEvents = 'none';
+      try {
+        await fetch(`/api/todoist/tasks/${task.id}/complete`, { method: 'POST' });
+        row.remove();
+        if (list.children.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'text-sm text-gray-600 py-1';
+          empty.textContent = 'No tasks due today';
+          tile.appendChild(empty);
+        }
+      } catch {
+        row.style.opacity = '';
+        row.style.pointerEvents = '';
+      }
+    });
 
     const text = document.createElement('span');
-    text.className = 'text-sm text-gray-200 leading-snug';
+    text.className = 'text-sm text-gray-200 leading-snug flex-1';
     text.textContent = task.content;
 
-    row.appendChild(dot);
+    row.appendChild(completeBtn);
     row.appendChild(text);
 
     if (task.due) {

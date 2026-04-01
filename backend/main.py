@@ -153,6 +153,7 @@ async def rename_chat(session_id: str, request: Request):
     data = await request.json()
     name = (data.get("name") or "").strip()
     archived = data.get("archived")
+    pinned = data.get("pinned")
     from backend.services.memory import memory_service
     if name:
         await asyncio.to_thread(memory_service.rename_chat, session_id, name)
@@ -160,6 +161,10 @@ async def rename_chat(session_id: str, request: Request):
         await asyncio.to_thread(memory_service.archive_chat, session_id)
     elif archived is False:
         await asyncio.to_thread(memory_service.unarchive_chat, session_id)
+    if pinned is True:
+        await asyncio.to_thread(memory_service.pin_chat, session_id)
+    elif pinned is False:
+        await asyncio.to_thread(memory_service.unpin_chat, session_id)
     return {"ok": True}
 
 
@@ -297,6 +302,26 @@ async def delete_memory(memory_id: str):
     from backend.services.memory import memory_service
     await asyncio.to_thread(memory_service.delete_memory_by_id, memory_id)
     return {"ok": True}
+
+
+@app.patch("/api/memories/{memory_id}")
+async def update_memory(memory_id: str, request: Request):
+    data = await request.json()
+    text = (data.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"error": "text required"}, status_code=400)
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.update_memory_text, memory_id, text)
+    return {"ok": True}
+
+
+@app.post("/api/todoist/tasks/{task_id}/complete")
+async def complete_todoist_task(task_id: str):
+    from backend.services.todoist import complete_task, todoist_enabled
+    if not todoist_enabled():
+        return JSONResponse({"error": "Todoist not configured"}, status_code=400)
+    ok = await complete_task(task_id)
+    return {"ok": ok}
 
 
 @app.get("/api/reminders")

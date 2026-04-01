@@ -588,6 +588,25 @@ async def chat_websocket(websocket: WebSocket):
                 if truncated:
                     system_prompt += "\n\n[Note: document was truncated to fit context window]"
 
+            # --- Context indicator ---
+            ctx_items = []
+            if relevant_memories:
+                ctx_items.append(f"{len(relevant_memories)} memor{'y' if len(relevant_memories) == 1 else 'ies'}")
+            if pending_reminders:
+                ctx_items.append(f"{len(pending_reminders)} reminder{'s' if len(pending_reminders) > 1 else ''}")
+            if conv_summary:
+                ctx_items.append("summary")
+            if "personal notes" in system_prompt:
+                ctx_items.append("notes")
+            if "Claude Code memory" in system_prompt:
+                ctx_items.append("memory files")
+            if search_result and search_result[0]:
+                ctx_items.append("web search")
+            if document and document.get("text"):
+                ctx_items.append(f"doc: {document.get('name', 'file')[:30]}")
+            if ctx_items:
+                await websocket.send_text(json.dumps({"type": "context", "items": ctx_items}))
+
             # --- Save & build messages ---
             if user_message and not is_regenerate:
                 history.append({"role": "user", "content": user_message})

@@ -21,14 +21,21 @@ function formatDue(iso) {
   return { label: `${past ? 'overdue' : 'in'} ${rel} · ${time}`, overdue: past };
 }
 
+let _allReminders = [];
+
+document.getElementById('reminders-filter').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase();
+  renderReminders(q ? _allReminders.filter(r => r.text.toLowerCase().includes(q)) : _allReminders);
+});
+
 async function loadReminders() {
   try {
     const res = await fetch('/api/reminders');
     const data = await res.json();
-    const reminders = data.reminders || [];
+    _allReminders = data.reminders || [];
 
     document.getElementById('reminders-loading').classList.add('hidden');
-    renderReminders(reminders);
+    renderReminders(_allReminders);
   } catch {
     document.getElementById('reminders-loading').classList.add('hidden');
     document.getElementById('reminders-empty').classList.remove('hidden');
@@ -185,6 +192,7 @@ async function doComplete(id, row) {
   row.style.pointerEvents = 'none';
   try {
     await fetch(`/api/reminders/${id}/complete`, { method: 'POST' });
+    _allReminders = _allReminders.filter(r => r.id !== id);
     row.remove();
     updateCount(-1);
   } catch {
@@ -198,6 +206,7 @@ async function doDelete(id, row) {
   row.style.pointerEvents = 'none';
   try {
     await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+    _allReminders = _allReminders.filter(r => r.id !== id);
     row.remove();
     updateCount(-1);
   } catch {

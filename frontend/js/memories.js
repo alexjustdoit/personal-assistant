@@ -20,8 +20,10 @@ function renderMemories(memories) {
     row.className = 'group flex items-start gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-700 transition-colors';
 
     const text = document.createElement('p');
-    text.className = 'flex-1 text-sm text-gray-200 leading-relaxed';
+    text.className = 'flex-1 text-sm text-gray-200 leading-relaxed cursor-pointer hover:text-white transition-colors';
+    text.title = 'Click to edit';
     text.textContent = mem.text;
+    text.addEventListener('click', () => startEditMemory(mem, text, row));
 
     const meta = document.createElement('div');
     meta.className = 'flex flex-col items-end gap-1.5 flex-shrink-0';
@@ -90,6 +92,54 @@ async function deleteMemory(id, row, mem) {
     row.style.opacity = '';
     row.style.pointerEvents = '';
   }
+}
+
+function startEditMemory(mem, textEl, row) {
+  const textarea = document.createElement('textarea');
+  textarea.className = 'flex-1 text-sm bg-gray-800 text-gray-100 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed';
+  textarea.value = mem.text;
+  textarea.rows = Math.max(2, Math.ceil(mem.text.length / 60));
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'flex gap-2 mt-2';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors';
+  saveBtn.textContent = 'Save';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'text-xs text-gray-500 hover:text-gray-300 px-3 py-1 rounded-lg transition-colors';
+  cancelBtn.textContent = 'Cancel';
+
+  cancelBtn.addEventListener('click', () => { textarea.replaceWith(textEl); btnRow.remove(); });
+  saveBtn.addEventListener('click', async () => {
+    const newText = textarea.value.trim();
+    if (!newText || newText === mem.text) { textarea.replaceWith(textEl); btnRow.remove(); return; }
+    saveBtn.disabled = true;
+    try {
+      await fetch(`/api/memories/${encodeURIComponent(mem.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newText }),
+      });
+      mem.text = newText;
+      textEl.textContent = newText;
+      const idx = _allMemories.findIndex(m => m.id === mem.id);
+      if (idx !== -1) _allMemories[idx].text = newText;
+      textarea.replaceWith(textEl);
+      btnRow.remove();
+    } catch {
+      saveBtn.disabled = false;
+    }
+  });
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { textarea.replaceWith(textEl); btnRow.remove(); }
+  });
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(saveBtn);
+  textEl.replaceWith(textarea);
+  row.appendChild(btnRow);
+  textarea.focus();
+  textarea.select();
 }
 
 loadMemories();

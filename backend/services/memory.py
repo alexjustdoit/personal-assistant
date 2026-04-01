@@ -88,6 +88,11 @@ class MemoryService:
                 conn.execute("ALTER TABLE reminders ADD COLUMN recurrence TEXT DEFAULT NULL")
             except Exception:
                 pass
+            # Migrate: add pinned column to chat_names
+            try:
+                conn.execute("ALTER TABLE chat_names ADD COLUMN pinned INTEGER DEFAULT 0")
+            except Exception:
+                pass
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -194,6 +199,10 @@ class MemoryService:
     def delete_memory_by_id(self, memory_id: str):
         col = self._get_collection()
         col.delete(ids=[memory_id])
+
+    def update_memory_text(self, memory_id: str, new_text: str):
+        col = self._get_collection()
+        col.update(ids=[memory_id], documents=[new_text])
 
     # --- SQLite: reminders ---
 
@@ -302,15 +311,16 @@ class MemoryService:
                          WHERE session_id = m.session_id AND role = 'user'
                          ORDER BY id LIMIT 1)
                     ) AS name,
-                    COALESCE(cn.archived, 0) AS archived
+                    COALESCE(cn.archived, 0) AS archived,
+                    COALESCE(cn.pinned, 0) AS pinned
                 FROM messages m
                 LEFT JOIN chat_names cn ON m.session_id = cn.session_id
                 GROUP BY m.session_id
                 {archived_filter}
-                ORDER BY last_active DESC
+                ORDER BY pinned DESC, last_active DESC
             """).fetchall()
         return [
-            {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2], "archived": bool(r[4])}
+            {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2], "archived": bool(r[4]), "pinned": bool(r[5])}
             for r in rows
         ]
 
@@ -351,6 +361,20 @@ class MemoryService:
                 "INSERT OR REPLACE INTO chat_names (session_id, name) VALUES (?, ?)",
                 (session_id, name.strip()[:120]),
             )
+            conn.commit()
+
+    def pin_chat(self, session_id: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO chat_names (session_id, name, pinned) VALUES (?, COALESCE((SELECT name FROM chat_names WHERE session_id = ?), ''), 1) "
+                "ON CONFLICT(session_id) DO UPDATE SET pinned = 1",
+                (session_id, session_id),
+            )
+            conn.commit()
+
+    def unpin_chat(self, session_id: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE chat_names SET pinned = 0 WHERE session_id = ?", (session_id,))
             conn.commit()
 
     def search_messages(self, query: str, limit: int = 20) -> list[dict]:
