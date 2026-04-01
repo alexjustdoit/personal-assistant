@@ -300,7 +300,7 @@ class MemoryService:
 
     def get_chats(self, include_archived: bool = False) -> list[dict]:
         with sqlite3.connect(DB_PATH) as conn:
-            archived_filter = "" if include_archived else "AND (cn.archived IS NULL OR cn.archived = 0)"
+            archived_having = "" if include_archived else "HAVING COALESCE(cn.archived, 0) = 0"
             rows = conn.execute(f"""
                 SELECT
                     m.session_id,
@@ -316,8 +316,8 @@ class MemoryService:
                 FROM messages m
                 LEFT JOIN chat_names cn ON m.session_id = cn.session_id
                 GROUP BY m.session_id
-                {archived_filter}
-                ORDER BY pinned DESC, last_active DESC
+                {archived_having}
+                ORDER BY COALESCE(cn.pinned, 0) DESC, last_active DESC
             """).fetchall()
         return [
             {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2], "archived": bool(r[4]), "pinned": bool(r[5])}

@@ -178,7 +178,7 @@ async def _detect_search(message: str) -> tuple[bool, str | None]:
             {"role": "system", "content": _SEARCH_SYSTEM},
             {"role": "user", "content": _SEARCH_PROMPT.format(msg=message)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             if data.get("search"):
@@ -194,7 +194,7 @@ async def _detect_todoist(message: str) -> dict | None:
             {"role": "system", "content": _TODOIST_SYSTEM},
             {"role": "user", "content": _TODOIST_PROMPT.format(msg=message)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             if data.get("action"):
@@ -213,7 +213,7 @@ async def _detect_govee(message: str) -> dict | None:
             {"role": "system", "content": _GOVEE_SYSTEM},
             {"role": "user", "content": _GOVEE_PROMPT.format(msg=message, devices=device_names)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             if data.get("action"):
@@ -230,7 +230,7 @@ async def _detect_ignore_site(message: str) -> str | None:
             {"role": "system", "content": _IGNORE_SITE_SYSTEM},
             {"role": "user", "content": _IGNORE_SITE_PROMPT.format(msg=message)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             return data.get("domain") or None
@@ -245,7 +245,7 @@ async def _detect_config_update(message: str) -> dict | None:
             {"role": "system", "content": _CONFIG_SYSTEM},
             {"role": "user", "content": _CONFIG_PROMPT.format(msg=message)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             if data.get("action") == "update" and data.get("field") and data.get("value") is not None:
@@ -263,7 +263,7 @@ async def _detect_calendar(message: str) -> dict | None:
             {"role": "system", "content": _CALENDAR_SYSTEM},
             {"role": "user", "content": _CALENDAR_PROMPT.format(msg=message, now=now)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             if data.get("action"):
@@ -306,7 +306,7 @@ async def _check_for_followups(user_message: str):
                 'JSON: {"task": "short task"} or {"task": null}'
             )},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             task = (data.get("task") or "").strip()
@@ -345,7 +345,7 @@ async def _auto_extract_memories(message: str):
             {"role": "system", "content": _MEMORY_SYSTEM},
             {"role": "user", "content": _MEMORY_PROMPT.format(msg=message)},
         ])
-        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        m = re.search(r"\{.*\}", response, re.DOTALL)
         if m:
             data = json.loads(m.group())
             for fact in data.get("facts", []):
