@@ -1,8 +1,36 @@
 import pytz
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from backend.config import config
+
+
+def _next_occurrence(due_iso: str, recurrence: str) -> str | None:
+    """Calculate the next due time for a recurring reminder."""
+    try:
+        dt = datetime.fromisoformat(due_iso)
+        if recurrence == "daily":
+            dt += timedelta(days=1)
+        elif recurrence == "weekly":
+            dt += timedelta(weeks=1)
+        elif recurrence == "weekdays":
+            dt += timedelta(days=1)
+            while dt.weekday() >= 5:  # skip Saturday (5) and Sunday (6)
+                dt += timedelta(days=1)
+        elif recurrence == "monthly":
+            import calendar
+            month = dt.month % 12 + 1
+            year = dt.year + (1 if dt.month == 12 else 0)
+            last_day = calendar.monthrange(year, month)[1]
+            dt = dt.replace(year=year, month=month, day=min(dt.day, last_day))
+        elif recurrence == "hourly":
+            dt += timedelta(hours=1)
+        else:
+            return None
+        return dt.isoformat()
+    except Exception:
+        return None
 
 
 class SchedulerService:
@@ -140,6 +168,13 @@ class SchedulerService:
                 )
                 push_browser("Reminder", reminder["text"])
                 await asyncio.to_thread(memory_service.complete_reminder, reminder["id"])
+                if reminder.get("recurrence"):
+                    next_due = _next_occurrence(reminder["due_time"], reminder["recurrence"])
+                    if next_due:
+                        await asyncio.to_thread(
+                            memory_service.create_reminder,
+                            reminder["text"], next_due, reminder["recurrence"],
+                        )
         except Exception as e:
             print(f"[Reminders] Error: {e}")
 

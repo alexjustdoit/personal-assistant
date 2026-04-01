@@ -305,7 +305,11 @@
           <p class="text-xs text-gray-600">CalDAV URL for creating events from chat. Works with Nextcloud, iCloud (use iCloud CalDAV URL + app-specific password), Radicale, and Google CalDAV.</p>
           <div class="form-group">
             <label class="form-label">CalDAV URL</label>
-            <input id="s-caldav-url" type="text" class="form-input font-mono text-xs" placeholder="https://caldav.example.com/calendars/user/default/" spellcheck="false" />
+            <div class="flex gap-2">
+              <input id="s-caldav-url" type="text" class="form-input font-mono text-xs flex-1" placeholder="https://caldav.example.com/calendars/user/default/" spellcheck="false" />
+              <button type="button" id="test-caldav-btn" class="btn-secondary text-xs px-3 flex-shrink-0">Test</button>
+            </div>
+            <p id="caldav-test-result" class="form-hint hidden"></p>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="form-group">

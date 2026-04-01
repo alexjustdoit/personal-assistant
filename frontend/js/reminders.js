@@ -74,12 +74,19 @@ function renderReminders(reminders) {
     text.textContent = r.text;
     body.appendChild(text);
 
-    if (due) {
-      const dueEl = document.createElement('p');
-      dueEl.className = `text-xs mt-0.5 ${due.overdue ? 'text-red-400' : 'text-gray-600'}`;
-      dueEl.textContent = due.label;
-      body.appendChild(dueEl);
+    const metaLine = document.createElement('p');
+    metaLine.className = `text-xs mt-0.5 flex items-center gap-1.5 ${due?.overdue ? 'text-red-400' : 'text-gray-600'}`;
+    if (r.recurrence) {
+      const badge = document.createElement('span');
+      badge.className = 'text-indigo-500 font-medium';
+      badge.textContent = '↻ ' + r.recurrence;
+      metaLine.appendChild(badge);
     }
+    if (due) {
+      const dueText = document.createTextNode(r.recurrence ? ' · ' + due.label : due.label);
+      metaLine.appendChild(dueText);
+    }
+    if (due || r.recurrence) body.appendChild(metaLine);
 
     // Snooze button + popover
     const snoozeWrap = document.createElement('div');
@@ -99,7 +106,7 @@ function renderReminders(reminders) {
       opt.addEventListener('click', (e) => {
         e.stopPropagation();
         snoozeMenu.classList.add('hidden');
-        doSnooze(r.id, mins, dueEl);
+        doSnooze(r.id, mins, metaLine);
       });
       snoozeMenu.appendChild(opt);
     });
@@ -157,12 +164,15 @@ async function doSnooze(id, mins, dueEl) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ due_time: due }),
     });
-    // Update the due label
+    // Update the meta line's due text
     if (dueEl) {
       const fmt = formatDue(due);
       if (fmt) {
-        dueEl.className = `text-xs mt-0.5 ${fmt.overdue ? 'text-red-400' : 'text-gray-600'}`;
-        dueEl.textContent = fmt.label;
+        // Remove existing text nodes, preserve the recurrence badge if present
+        Array.from(dueEl.childNodes).forEach(n => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+        const badge = dueEl.querySelector('span');
+        dueEl.className = `text-xs mt-0.5 flex items-center gap-1.5 ${fmt.overdue ? 'text-red-400' : 'text-gray-600'}`;
+        dueEl.appendChild(document.createTextNode(badge ? ' · ' + fmt.label : fmt.label));
       }
     }
   } catch {
@@ -224,12 +234,13 @@ async function addReminder() {
   if (dueEl.value) {
     due_time = new Date(dueEl.value).toISOString();
   }
+  const recurrence = document.getElementById('add-recurrence').value || null;
 
   try {
     await fetch('/api/reminders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, due_time }),
+      body: JSON.stringify({ text, due_time, recurrence }),
     });
     textEl.value = '';
     dueEl.value = '';

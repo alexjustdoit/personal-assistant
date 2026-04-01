@@ -56,6 +56,13 @@ function switchChat(sessionId) {
 // Configure marked
 marked.use({ breaks: true, gfm: true });
 
+function applyHighlighting(el) {
+  if (typeof hljs === 'undefined') return;
+  el.querySelectorAll('pre code').forEach(block => {
+    if (!block.classList.contains('hljs')) hljs.highlightElement(block);
+  });
+}
+
 const messagesEl = document.getElementById('messages');
 const welcomeEl = document.getElementById('welcome');
 const inputEl = document.getElementById('input');
@@ -415,6 +422,7 @@ function appendMessage(role, content = '', timestamp = null) {
 
   if (role === 'assistant' && content) {
     bubble.innerHTML = marked.parse(content);
+    applyHighlighting(bubble);
   } else {
     bubble.textContent = content;
   }
@@ -478,6 +486,7 @@ function finishStreaming() {
     const rawText = currentText;
     if (rawText) {
       currentBubble.innerHTML = marked.parse(rawText);
+      applyHighlighting(currentBubble);
     }
 
     const wrapper = currentBubble.parentElement;
@@ -988,6 +997,21 @@ document.querySelectorAll('.suggestion-chip').forEach(chip => {
     inputEl.value = chip.dataset.prompt;
     sendMessage();
   });
+});
+
+// --- Keyboard shortcuts ---
+
+document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key === 'k') {
+    e.preventDefault();
+    newChat();
+  }
+  if (mod && e.key === '/') {
+    e.preventDefault();
+    inputEl.focus();
+    inputEl.select();
+  }
 });
 
 connect();

@@ -43,6 +43,23 @@ _SESSION_HINT = re.compile(
     re.I,
 )
 
+_CONFIG_HINT = re.compile(
+    r"\b(change|update|set|switch|modify)\b.{0,40}\b(news topics?|weather city|city|units?|celsius|fahrenheit|imperial|metric)\b",
+    re.I,
+)
+
+_CONFIG_SYSTEM = "You detect requests to update app configuration settings. Reply with JSON only."
+_CONFIG_PROMPT = (
+    "Does this message want to change a configuration setting for the personal assistant?\n"
+    'Message: "{msg}"\n'
+    "Supported fields:\n"
+    "  news.topics — comma-separated list (e.g. 'AI, finance, science')\n"
+    "  weather.city — city name (e.g. 'Boston,US')\n"
+    "  weather.units — 'imperial' (°F) or 'metric' (°C)\n"
+    'JSON: {{"action": "update", "field": "news.topics", "value": "AI, tech"}} '
+    'or {{"action": null}}'
+)
+
 _CALENDAR_HINT = re.compile(
     r"\b(schedule|book|create an? event|add (?:an? )?(?:event|meeting|appointment)|put on (?:my )?calendar|block (?:off )?(?:time|my)|meeting|appointment)\b",
     re.I,
@@ -110,7 +127,7 @@ async def extract_reminder(text: str) -> dict | None:
         {"role": "system", "content": "Extract reminder details from the user message. Respond with JSON only, no other text."},
         {"role": "user", "content": (
             f'Message: "{text}"\n\n'
-            'Return JSON: {"task": "the reminder task", "time_str": "natural language time or null"}\n'
+            'Return JSON: {"task": "the reminder task", "time_str": "natural language time or null", "recurrence": "daily|weekly|weekdays|monthly|hourly or null"}\n'
             'If not a reminder, return: {"task": null}'
         )},
     ])
@@ -212,6 +229,22 @@ async def _detect_ignore_site(message: str) -> str | None:
         if m:
             data = json.loads(m.group())
             return data.get("domain") or None
+    except Exception:
+        pass
+    return None
+
+
+async def _detect_config_update(message: str) -> dict | None:
+    try:
+        response = await llm_router.complete_detect([
+            {"role": "system", "content": _CONFIG_SYSTEM},
+            {"role": "user", "content": _CONFIG_PROMPT.format(msg=message)},
+        ])
+        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            if data.get("action") == "update" and data.get("field") and data.get("value") is not None:
+                return data
     except Exception:
         pass
     return None
@@ -356,7 +389,8 @@ async def chat_websocket(websocket: WebSocket):
                 reminder = await extract_reminder(user_message)
                 if reminder:
                     due_time = parse_due_time(reminder.get("time_str"))
-                    await asyncio.to_thread(memory_service.save_reminder, session_id, reminder["task"], due_time)
+                    recurrence = reminder.get("recurrence") or None
+                    await asyncio.to_thread(memory_service.save_reminder, session_id, reminder["task"], due_time, recurrence)
 
             # --- System prompt ---
             relevant_memories = await asyncio.to_thread(memory_service.search_memories, user_message) if user_message else []
@@ -382,6 +416,8 @@ async def chat_websocket(websocket: WebSocket):
             from backend.services.calendar_service import calendar_service
             if user_message and calendar_service.caldav_enabled() and _CALENDAR_HINT.search(user_message):
                 detect_tasks["calendar"] = asyncio.create_task(_detect_calendar(user_message))
+            if user_message and _CONFIG_HINT.search(user_message):
+                detect_tasks["config_update"] = asyncio.create_task(_detect_config_update(user_message))
             if user_message and _IGNORE_SITE_HINT.search(user_message):
                 detect_tasks["ignore_site"] = asyncio.create_task(_detect_ignore_site(user_message))
             if user_message and email_enabled() and _EMAIL_HINT.search(user_message):
@@ -399,6 +435,7 @@ async def chat_websocket(websocket: WebSocket):
             email_result = None
             sessions_result = []
             calendar_result = None
+            config_update_result = None
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
@@ -415,6 +452,8 @@ async def chat_websocket(websocket: WebSocket):
                     sessions_result = detect_tasks["sessions"].result() if not detect_tasks["sessions"].exception() else []
                 if "calendar" in detect_tasks:
                     calendar_result = detect_tasks["calendar"].result() if not detect_tasks["calendar"].exception() else None
+                if "config_update" in detect_tasks:
+                    config_update_result = detect_tasks["config_update"].result() if not detect_tasks["config_update"].exception() else None
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -498,6 +537,32 @@ async def chat_websocket(websocket: WebSocket):
                     f"[{s['source']}]\n{s['excerpt']}" for s in sessions_result
                 )
                 system_prompt += f"\n\nContext from past work sessions:\n{lines}"
+
+            # --- Runtime config update ---
+            if config_update_result:
+                from backend.config import config as _cfg, save_config
+                field = config_update_result.get("field", "")
+                value = config_update_result.get("value", "")
+                applied = False
+                if field == "news.topics":
+                    topics = [t.strip() for t in str(value).split(",") if t.strip()]
+                    _cfg.setdefault("news", {})["topics"] = topics
+                    save_config()
+                    system_prompt += f'\n\n[Config] Updated news topics to: {", ".join(topics)}. Confirm to the user.'
+                    applied = True
+                elif field == "weather.city":
+                    _cfg.setdefault("weather", {})["city"] = str(value).strip()
+                    save_config()
+                    system_prompt += f'\n\n[Config] Updated weather city to "{value}". Confirm to the user.'
+                    applied = True
+                elif field == "weather.units":
+                    units = "metric" if any(w in str(value).lower() for w in ("metric", "celsius", "°c", "c")) else "imperial"
+                    _cfg.setdefault("weather", {})["units"] = units
+                    save_config()
+                    system_prompt += f'\n\n[Config] Updated weather units to {units}. Confirm to the user.'
+                    applied = True
+                if not applied:
+                    system_prompt += f'\n\n[Config] That setting ("{field}") can\'t be changed via chat. Tell the user to use the Settings page.'
 
             # --- Calendar create ---
             if calendar_result and calendar_result.get("action") == "create":

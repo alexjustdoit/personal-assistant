@@ -15,4 +15,10 @@ def is_configured() -> bool:
     return CONFIG_PATH.exists()
 
 
+def save_config():
+    """Write the current in-memory config back to config.yaml."""
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
 config = load_config()

@@ -27,12 +27,23 @@
     </div>
 
     <!-- Quick add -->
-    <div class="flex gap-2 mb-6">
-      <input id="add-text" type="text" placeholder="Add a reminder…"
-        class="flex-1 bg-gray-900 border border-gray-800 text-gray-100 placeholder-gray-600 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" autocomplete="off" />
-      <input id="add-due" type="datetime-local"
-        class="bg-gray-900 border border-gray-800 text-gray-500 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:text-gray-200 flex-shrink-0" />
-      <button id="add-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0">Add</button>
+    <div class="space-y-2 mb-6">
+      <div class="flex gap-2">
+        <input id="add-text" type="text" placeholder="Add a reminder…"
+          class="flex-1 bg-gray-900 border border-gray-800 text-gray-100 placeholder-gray-600 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" autocomplete="off" />
+        <button id="add-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0">Add</button>
+      </div>
+      <div class="flex gap-2">
+        <input id="add-due" type="datetime-local"
+          class="flex-1 bg-gray-900 border border-gray-800 text-gray-500 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:text-gray-200" />
+        <select id="add-recurrence" class="bg-gray-900 border border-gray-800 text-gray-500 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0">
+          <option value="">One-time</option>
+          <option value="daily">Daily</option>
+          <option value="weekdays">Weekdays</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
     </div>
 
     <!-- Loading -->

@@ -206,6 +206,36 @@ function buildUpdatedConfig() {
 
 document.getElementById('s-notes-add').addEventListener('click', () => addFolderRow());
 
+document.getElementById('test-caldav-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('test-caldav-btn');
+  const result = document.getElementById('caldav-test-result');
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  result.classList.add('hidden');
+  try {
+    const res = await fetch('/api/setup/test-caldav', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: document.getElementById('s-caldav-url').value.trim(),
+        username: document.getElementById('s-caldav-username').value.trim(),
+        password: document.getElementById('s-caldav-password').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    result.classList.remove('hidden');
+    result.textContent = data.connected ? '✓ Connected' : `✗ ${data.error || 'Failed'}`;
+    result.className = `form-hint ${data.connected ? 'text-green-500' : 'text-red-400'}`;
+  } catch {
+    result.classList.remove('hidden');
+    result.textContent = '✗ Request failed';
+    result.className = 'form-hint text-red-400';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test';
+  }
+});
+
 document.getElementById('save-btn').addEventListener('click', async () => {
   const btn = document.getElementById('save-btn');
   const status = document.getElementById('save-status');

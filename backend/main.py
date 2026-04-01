@@ -313,8 +313,9 @@ async def create_reminder(request: Request):
     if not text:
         return JSONResponse({"error": "text required"}, status_code=400)
     due_time = data.get("due_time") or None
+    recurrence = data.get("recurrence") or None
     from backend.services.memory import memory_service
-    await asyncio.to_thread(memory_service.create_reminder, text, due_time)
+    await asyncio.to_thread(memory_service.create_reminder, text, due_time, recurrence)
     return {"ok": True}
 
 
@@ -398,6 +399,30 @@ async def test_govee(request: Request):
                 devices = res.json().get("data", {}).get("devices", [])
                 return {"connected": True, "device_count": len(devices)}
             return {"connected": False, "error": f"HTTP {res.status_code}"}
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/setup/test-caldav")
+async def test_caldav(request: Request):
+    data = await request.json()
+    url = (data.get("url") or "").strip().rstrip("/")
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if not url:
+        return {"connected": False, "error": "No URL provided"}
+    try:
+        auth = (username, password) if username else None
+        async with httpx.AsyncClient() as client:
+            res = await client.request(
+                "PROPFIND", url,
+                headers={"Depth": "0", "Content-Type": "application/xml"},
+                auth=auth,
+                timeout=10,
+            )
+        if res.status_code in (200, 207):
+            return {"connected": True}
+        return {"connected": False, "error": f"HTTP {res.status_code}"}
     except Exception as e:
         return {"connected": False, "error": str(e)}
 

@@ -83,6 +83,11 @@ class MemoryService:
                 conn.execute("ALTER TABLE chat_names ADD COLUMN archived INTEGER DEFAULT 0")
             except Exception:
                 pass
+            # Migrate: add recurrence column to reminders
+            try:
+                conn.execute("ALTER TABLE reminders ADD COLUMN recurrence TEXT DEFAULT NULL")
+            except Exception:
+                pass
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -192,11 +197,11 @@ class MemoryService:
 
     # --- SQLite: reminders ---
 
-    def save_reminder(self, session_id: str, text: str, due_time: str | None = None):
+    def save_reminder(self, session_id: str, text: str, due_time: str | None = None, recurrence: str | None = None):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
-                "INSERT INTO reminders (session_id, text, due_time, created_at) VALUES (?, ?, ?, ?)",
-                (session_id, text, due_time, datetime.utcnow().isoformat()),
+                "INSERT INTO reminders (session_id, text, due_time, recurrence, created_at) VALUES (?, ?, ?, ?, ?)",
+                (session_id, text, due_time, recurrence, datetime.utcnow().isoformat()),
             )
             conn.commit()
 
@@ -204,23 +209,23 @@ class MemoryService:
         with sqlite3.connect(DB_PATH) as conn:
             if session_id:
                 rows = conn.execute(
-                    "SELECT id, text, due_time FROM reminders WHERE session_id = ? AND completed = 0 ORDER BY due_time",
+                    "SELECT id, text, due_time, recurrence FROM reminders WHERE session_id = ? AND completed = 0 ORDER BY due_time",
                     (session_id,),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, text, due_time FROM reminders WHERE completed = 0 ORDER BY due_time",
+                    "SELECT id, text, due_time, recurrence FROM reminders WHERE completed = 0 ORDER BY due_time",
                 ).fetchall()
-        return [{"id": r[0], "text": r[1], "due_time": r[2]} for r in rows]
+        return [{"id": r[0], "text": r[1], "due_time": r[2], "recurrence": r[3]} for r in rows]
 
     def get_due_reminders(self) -> list[dict]:
         now = datetime.utcnow().isoformat()
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
-                "SELECT id, text, due_time FROM reminders WHERE completed = 0 AND due_time IS NOT NULL AND due_time <= ?",
+                "SELECT id, text, due_time, recurrence FROM reminders WHERE completed = 0 AND due_time IS NOT NULL AND due_time <= ?",
                 (now,),
             ).fetchall()
-        return [{"id": r[0], "text": r[1], "due_time": r[2]} for r in rows]
+        return [{"id": r[0], "text": r[1], "due_time": r[2], "recurrence": r[3]} for r in rows]
 
     def complete_reminder(self, reminder_id: int):
         with sqlite3.connect(DB_PATH) as conn:
@@ -232,9 +237,9 @@ class MemoryService:
             conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
             conn.commit()
 
-    def create_reminder(self, text: str, due_time: str | None = None):
+    def create_reminder(self, text: str, due_time: str | None = None, recurrence: str | None = None):
         """Create a reminder outside of a chat session (e.g. from the reminders UI)."""
-        self.save_reminder("ui", text, due_time)
+        self.save_reminder("ui", text, due_time, recurrence)
 
     def update_reminder_due(self, reminder_id: int, due_time: str):
         with sqlite3.connect(DB_PATH) as conn:
