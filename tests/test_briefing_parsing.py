@@ -1,39 +1,60 @@
 """Tests for pure parsing helpers in briefing.py."""
 import sys
 import os
+import pytest
 from unittest.mock import MagicMock
-
-# Stub all heavy deps before import
-for mod in [
-    'backend.config', 'backend.services.weather', 'backend.services.rss_news',
-    'backend.services.calendar_service', 'backend.services.notifications',
-    'backend.services.memory', 'backend.services.llm',
-]:
-    sys.modules.setdefault(mod, MagicMock())
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from backend.services.briefing import _format_article_for_prompt
+_STUB_MODS = [
+    'backend.config', 'backend.services.weather', 'backend.services.rss_news',
+    'backend.services.calendar_service', 'backend.services.notifications',
+    'backend.services.memory', 'backend.services.llm',
+]
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _stub_heavy_imports():
+    prior = {k: sys.modules.get(k) for k in _STUB_MODS}
+    for mod in _STUB_MODS:
+        if mod not in sys.modules:
+            sys.modules[mod] = MagicMock()
+    sys.modules.pop('backend.services.briefing', None)
+    yield
+    for mod, val in prior.items():
+        if val is None:
+            sys.modules.pop(mod, None)
+        else:
+            sys.modules[mod] = val
+    sys.modules.pop('backend.services.briefing', None)
+
+
+def _fmt():
+    from backend.services.briefing import _format_article_for_prompt
+    return _format_article_for_prompt
 
 
 # ── _format_article_for_prompt ────────────────────────────────────────────────
 
 def test_format_uses_full_text_when_present():
+    fn = _fmt()
     article = {"title": "Big Story", "source": "BBC", "full_text": "Full body text.", "description": "Short desc."}
-    result = _format_article_for_prompt(article)
+    result = fn(article)
     assert "Full body text." in result
     assert "Short desc." not in result
 
 
 def test_format_falls_back_to_description():
+    fn = _fmt()
     article = {"title": "Story", "source": "CNN", "full_text": "", "description": "Fallback desc."}
-    result = _format_article_for_prompt(article)
+    result = fn(article)
     assert "Fallback desc." in result
 
 
 def test_format_no_body_omits_body_line():
+    fn = _fmt()
     article = {"title": "Quiet Story", "source": "Reuters"}
-    result = _format_article_for_prompt(article)
+    result = fn(article)
     lines = result.strip().splitlines()
     assert len(lines) == 1
     assert "Quiet Story" in lines[0]
@@ -41,15 +62,17 @@ def test_format_no_body_omits_body_line():
 
 
 def test_format_includes_bullet_and_source():
+    fn = _fmt()
     article = {"title": "My Title", "source": "AP"}
-    result = _format_article_for_prompt(article)
+    result = fn(article)
     assert result.startswith("• ")
     assert "AP" in result
 
 
 def test_format_strips_whitespace_from_body():
+    fn = _fmt()
     article = {"title": "T", "source": "S", "full_text": "  padded  "}
-    result = _format_article_for_prompt(article)
+    result = fn(article)
     assert "padded" in result
     assert result.split("\n")[1].strip() == "padded"
 

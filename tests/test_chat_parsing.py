@@ -3,10 +3,13 @@ import sys
 import os
 import json
 import re
+import pytest
 from unittest.mock import MagicMock
+from datetime import datetime as _dt
 
-# Stub out all FastAPI and heavy deps before importing
-for mod in [
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+_STUB_MODS = [
     'fastapi', 'backend.services.llm', 'backend.services.memory',
     'backend.services.search', 'backend.services.todoist',
     'backend.services.govee', 'backend.services.calendar_service',
@@ -14,15 +17,37 @@ for mod in [
     'backend.services.sessions_reader', 'backend.services.notes_watcher',
     'backend.services.claude_memory', 'backend.config',
     'dateparser',
-]:
-    sys.modules.setdefault(mod, MagicMock())
+]
 
-# dateparser.parse needs to return a real datetime for our test
-import dateparser as _dp_mock
-from datetime import datetime as _dt
-_dp_mock.parse = lambda s, **kw: _dt(2026, 4, 15, 14, 0, 0) if "2026-04-15" in (s or "") else None
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+@pytest.fixture(autouse=True, scope="module")
+def _stub_heavy_imports():
+    # Save prior state and install stubs only for modules not already present
+    prior = {k: sys.modules.get(k) for k in _STUB_MODS}
+    for mod in _STUB_MODS:
+        if mod not in sys.modules:
+            sys.modules[mod] = MagicMock()
+
+    # Patch dateparser.parse on the (now-mocked) module
+    import dateparser as _dp
+    _dp.parse = lambda s, **kw: _dt(2026, 4, 15, 14, 0, 0) if "2026-04-15" in (s or "") else None
+
+    # Evict the chat router so it re-imports fresh with our mocks active
+    chat_prior = sys.modules.pop('backend.routers.chat', None)
+
+    yield
+
+    # Remove stubs we added; leave anything that was already present
+    for mod, val in prior.items():
+        if val is None:
+            sys.modules.pop(mod, None)
+        else:
+            sys.modules[mod] = val
+
+    # Evict the chat router so other tests get a clean import
+    sys.modules.pop('backend.routers.chat', None)
+    if chat_prior is not None:
+        sys.modules['backend.routers.chat'] = chat_prior
 
 
 def extract_json(text: str):
