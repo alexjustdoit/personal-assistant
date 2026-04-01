@@ -200,6 +200,61 @@ PERIOD_TITLE = {
 }
 
 
+async def generate_weekly_digest():
+    """Generate and send a weekly wrap-up via ntfy."""
+    week = memory_service.get_week_reminders(days=7)
+    sections = []
+
+    if week["completed"]:
+        lines = "\n".join(f"  - {t}" for t in week["completed"])
+        sections.append(f"Completed this week ({len(week['completed'])}):\n{lines}")
+
+    if week["pending"]:
+        lines = "\n".join(
+            f"  - {r['text']}" + (f" (due: {r['due_time']})" if r.get("due_time") else "")
+            for r in week["pending"]
+        )
+        sections.append(f"Still pending ({len(week['pending'])}):\n{lines}")
+
+    try:
+        from backend.services.sessions_reader import search_sessions
+        sessions = search_sessions("what did I work on this week", n=2)
+        if sessions:
+            lines = "\n\n".join(f"[{s['source']}]\n{s['excerpt']}" for s in sessions)
+            sections.append(f"Recent work sessions:\n{lines}")
+    except Exception:
+        pass
+
+    topics = config.get("news", {}).get("topics", [])
+    if topics:
+        news_tiles = await _synthesize_rss_news(topics)
+        if news_tiles:
+            lines = "\n".join(
+                f"  - {tile['topic']}: {tile.get('summary', '')}" for tile in news_tiles[:3]
+            )
+            sections.append(f"This week in the news:\n{lines}")
+
+    if not sections:
+        return
+
+    data_block = "\n\n".join(sections)
+    today = datetime.utcnow().strftime("%A, %B %d, %Y").replace(" 0", " ")
+    prompt = (
+        f"Today is {today}. You are delivering a weekly wrap-up. "
+        "Write 2-3 warm, reflective sentences summarising the week — "
+        "what got done, what's still open, and any notable news. "
+        "Don't list everything verbatim — synthesise.\n\n"
+        f"Data:\n{data_block}\n\nWrite the weekly wrap-up:"
+    )
+
+    digest_text = await llm_router.complete_briefing([
+        {"role": "system", "content": "You write warm, brief weekly wrap-ups."},
+        {"role": "user", "content": prompt},
+    ])
+
+    await notification_service.send(title="Weekly Wrap-up", body=digest_text)
+
+
 async def generate_and_send_briefing(period: str = "morning"):
     """Scheduled briefing: generates structured data, narrates via LLM, sends ntfy."""
     data = await collect_briefing_data(period)

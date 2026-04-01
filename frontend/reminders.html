@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reminders — Personal Assistant</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="dark min-h-screen bg-gray-950 text-gray-100">
+
+  <div class="max-w-2xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-gray-500 hover:text-gray-300 transition-colors p-1.5 rounded-lg hover:bg-gray-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+        </a>
+        <h1 class="text-lg font-semibold text-gray-100">Reminders</h1>
+      </div>
+      <span id="reminder-count" class="text-xs text-gray-600"></span>
+    </div>
+
+    <!-- Quick add -->
+    <div class="flex gap-2 mb-6">
+      <input id="add-text" type="text" placeholder="Add a reminder…"
+        class="flex-1 bg-gray-900 border border-gray-800 text-gray-100 placeholder-gray-600 text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" autocomplete="off" />
+      <input id="add-due" type="datetime-local"
+        class="bg-gray-900 border border-gray-800 text-gray-500 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:text-gray-200 flex-shrink-0" />
+      <button id="add-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0">Add</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="reminders-loading" class="space-y-2">
+      <div class="h-14 bg-gray-900 border border-gray-800 rounded-xl animate-pulse"></div>
+      <div class="h-14 bg-gray-900 border border-gray-800 rounded-xl animate-pulse opacity-70"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="reminders-empty" class="hidden text-center py-12">
+      <div class="text-4xl mb-3">✅</div>
+      <p class="text-gray-400 text-sm">No pending reminders.</p>
+      <p class="text-gray-600 text-xs mt-1">Add one above or ask the assistant: "remind me to…"</p>
+    </div>
+
+    <!-- List -->
+    <div id="reminders-list" class="hidden space-y-2"></div>
+
+  </div>
+
+  <script src="/static/js/reminders.js"></script>
+</body>
+</html>

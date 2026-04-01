@@ -10,6 +10,8 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - **LLM routing** — Ollama (local/free) by default; optional Claude, OpenAI, Gemini, or Groq selectable at runtime
 - **Persistent memory** — remembers facts across conversations via ChromaDB; view and delete memories at `/memories`
 - **Morning briefings** — weather, calendar, news digest, email summary, and reminders delivered daily
+- **Reminders** — set reminders via chat or the `/reminders` page; fires ntfy push + browser notification when due
+- **Weekly digest** — automated weekly wrap-up (completed tasks, open reminders, news) via ntfy
 - **Push notifications** — reminders via ntfy to phone or browser
 - **Smart home** — Govee light control via chat (on/off, brightness, color, color temperature)
 - **Email** — unread emails ranked by importance surfaced in the home dashboard and chat
@@ -310,7 +312,8 @@ personal-assistant/
 │       ├── llm.py            # LLM router (Ollama / Claude / OpenAI / Gemini / Groq)
 │       ├── memory.py         # Conversation history, ChromaDB memory, reminders, chat management
 │       ├── briefing.py       # Morning/evening briefing assembly + LLM narration
-│       ├── scheduler.py      # APScheduler (briefing cron + reminder checks)
+│       ├── scheduler.py      # APScheduler (briefing cron, reminder checks, weekly digest)
+│       ├── notification_queue.py  # In-process queue for browser reminder notifications
 │       ├── email_service.py  # IMAP email fetching + importance ranking
 │       ├── activity_tracker.py  # Windows browser/app activity logger
 │       ├── notes_watcher.py  # Watchdog file watcher for notes folders
@@ -329,12 +332,16 @@ personal-assistant/
 │   ├── home.html             # Dashboard (briefing, quick-chat, sidebar)
 │   ├── chat.html             # Chat view with collapsible sidebar
 │   ├── memories.html         # Personal memory viewer (/memories)
+│   ├── reminders.html        # Reminders page (/reminders)
+│   ├── settings.html         # Settings editor (/settings)
 │   ├── setup.html            # First-run setup wizard
 │   ├── css/style.css
 │   └── js/
 │       ├── home.js
 │       ├── chat.js
 │       ├── memories.js
+│       ├── reminders.js
+│       ├── settings.js
 │       └── setup.js
 ├── mac-agent/                # Mac activity tracker (feeds context via iCloud)
 │   ├── agent.py              # Polls browser history + active app, writes markdown logs
@@ -388,3 +395,4 @@ The app recreates `data/` automatically on next start.
 - [x] Phase 7 — Smart home (Govee lights), Todoist tasks, image understanding
 - [x] Phase 8 — Activity tracking (Windows + Mac agent via iCloud), notes watcher, Claude Code memory
 - [x] Phase 9 — Chat polish (markdown, timestamps, stop button, export, archive, quick-chat, work history query)
+- [x] Phase 10 — Reminders UI, weekly digest, settings page, browser notifications, memory management

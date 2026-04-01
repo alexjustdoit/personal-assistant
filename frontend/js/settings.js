@@ -38,6 +38,9 @@ function populate(cfg) {
   setValue('s-briefing-tz', briefing.timezone || 'America/New_York');
   document.getElementById('s-evening-enabled').checked = !!briefing.evening_enabled;
   setValue('s-evening-time', briefing.evening_time || '18:00');
+  document.getElementById('s-weekly-enabled').checked = !!briefing.weekly_enabled;
+  setValue('s-weekly-day', briefing.weekly_day || 'sunday');
+  setValue('s-weekly-time', briefing.weekly_time || '09:00');
 
   setValue('s-weather-city', weather.city || '');
   setValue('s-weather-units', weather.units || 'imperial');
@@ -106,6 +109,9 @@ function buildUpdatedConfig() {
   cfg.briefing.timezone = document.getElementById('s-briefing-tz').value.trim() || 'America/New_York';
   cfg.briefing.evening_enabled = document.getElementById('s-evening-enabled').checked;
   cfg.briefing.evening_time = document.getElementById('s-evening-time').value || '18:00';
+  cfg.briefing.weekly_enabled = document.getElementById('s-weekly-enabled').checked;
+  cfg.briefing.weekly_day = document.getElementById('s-weekly-day').value;
+  cfg.briefing.weekly_time = document.getElementById('s-weekly-time').value || '09:00';
 
   // Weather
   cfg.weather = cfg.weather || {};

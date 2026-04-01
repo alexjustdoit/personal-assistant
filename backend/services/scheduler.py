@@ -44,6 +44,18 @@ class SchedulerService:
             replace_existing=True,
         )
 
+        # Weekly digest
+        if cfg.get("weekly_enabled", False):
+            weekly_day = cfg.get("weekly_day", "sunday")
+            weekly_time = cfg.get("weekly_time", "09:00")
+            w_hour, w_minute = map(int, weekly_time.split(":"))
+            self._scheduler.add_job(
+                self._run_weekly_digest,
+                CronTrigger(day_of_week=weekly_day, hour=w_hour, minute=w_minute, timezone=tz),
+                id="weekly_digest",
+                replace_existing=True,
+            )
+
         # Activity tracking
         act_cfg = config.get("activity_tracking", {})
         if act_cfg.get("enabled") and act_cfg.get("log_folder"):
@@ -67,6 +79,13 @@ class SchedulerService:
 
     def stop(self):
         self._scheduler.shutdown(wait=False)
+
+    async def _run_weekly_digest(self):
+        from backend.services.briefing import generate_weekly_digest
+        try:
+            await generate_weekly_digest()
+        except Exception as e:
+            print(f"[Briefing] Weekly digest error: {e}")
 
     async def _run_morning_briefing(self):
         from backend.services.briefing import generate_and_send_briefing

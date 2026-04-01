@@ -289,6 +289,39 @@ async def get_reminders():
     return {"reminders": reminders}
 
 
+@app.post("/api/reminders")
+async def create_reminder(request: Request):
+    data = await request.json()
+    text = (data.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"error": "text required"}, status_code=400)
+    due_time = data.get("due_time") or None
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.create_reminder, text, due_time)
+    return {"ok": True}
+
+
+@app.post("/api/reminders/{reminder_id}/complete")
+async def complete_reminder(reminder_id: int):
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.complete_reminder, reminder_id)
+    return {"ok": True}
+
+
+@app.delete("/api/reminders/{reminder_id}")
+async def delete_reminder(reminder_id: int):
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.delete_reminder, reminder_id)
+    return {"ok": True}
+
+
+@app.get("/reminders")
+async def serve_reminders():
+    if not is_configured():
+        return RedirectResponse("/setup")
+    return FileResponse(frontend_path / "reminders.html")
+
+
 @app.get("/api/notifications/pending")
 async def get_pending_notifications():
     from backend.services.notification_queue import pop_all

@@ -8,11 +8,24 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Notification for due reminders** — browser notification or ntfy push when a reminder fires
-- **Memory search/filter** — search bar on the /memories page for users with many stored facts
 - **Proactive memory suggestions** — surface follow-ups based on things mentioned earlier ("you mentioned booking a dentist appointment last week — did you get around to it?")
-- **Weekly digest** — summary of the week delivered via ntfy on a configured day
 - **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
+
+---
+
+## [0.12] — 2026-03-31
+
+### Added — Reminders page
+- `/reminders` — dedicated page listing all pending reminders with quick-add form
+- Reminders shown with relative time (overdue in red, upcoming in gray); full time displayed on each row
+- Quick-add: text input + optional datetime-local picker + Add button; Enter key submits
+- Mark complete (circle button) or delete (trash icon on hover) from the list
+- Bell icon link to `/reminders` added to home page header
+
+### Added — Weekly digest
+- Scheduled weekly wrap-up via ntfy: completed reminders, still-pending items, past work sessions, and top news summaries — narrated as 2-3 warm sentences by the LLM
+- Config: `briefing.weekly_enabled`, `briefing.weekly_day` (e.g. `sunday`), `briefing.weekly_time` (e.g. `09:00`)
+- Settings page now includes a weekly digest toggle + day/time pickers in the Briefing section
 
 ---
 

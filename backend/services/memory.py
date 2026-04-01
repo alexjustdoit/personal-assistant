@@ -186,6 +186,26 @@ class MemoryService:
             conn.execute("UPDATE reminders SET completed = 1 WHERE id = ?", (reminder_id,))
             conn.commit()
 
+    def delete_reminder(self, reminder_id: int):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
+            conn.commit()
+
+    def create_reminder(self, text: str, due_time: str | None = None):
+        """Create a reminder outside of a chat session (e.g. from the reminders UI)."""
+        self.save_reminder("ui", text, due_time)
+
+    def get_week_reminders(self, days: int = 7) -> dict:
+        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT id, text, due_time, completed FROM reminders WHERE created_at > ? ORDER BY created_at",
+                (cutoff,),
+            ).fetchall()
+        completed = [r[1] for r in rows if r[3]]
+        pending = [{"id": r[0], "text": r[1], "due_time": r[2]} for r in rows if not r[3]]
+        return {"completed": completed, "pending": pending}
+
     # --- SQLite: briefings ---
 
     def save_briefing(self, content: str):
