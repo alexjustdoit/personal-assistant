@@ -84,6 +84,12 @@ function buildHomeChatItem(chat) {
   renameBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
   renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startHomeRename(chat, nameEl); });
 
+  const archiveBtn = document.createElement('button');
+  archiveBtn.className = 'p-1 text-gray-600 hover:text-yellow-400 rounded transition-colors';
+  archiveBtn.title = chat.archived ? 'Unarchive' : 'Archive';
+  archiveBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12"/></svg>`;
+  archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleHomeArchive(chat); });
+
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'p-1 text-gray-600 hover:text-red-400 rounded transition-colors';
   deleteBtn.title = 'Delete';
@@ -91,6 +97,7 @@ function buildHomeChatItem(chat) {
   deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteHomeChat(chat.id); });
 
   actions.appendChild(renameBtn);
+  actions.appendChild(archiveBtn);
   actions.appendChild(deleteBtn);
   item.appendChild(btn);
   item.appendChild(actions);
@@ -130,6 +137,15 @@ async function startHomeRename(chat, nameEl) {
   });
 }
 
+async function toggleHomeArchive(chat) {
+  await fetch(`/api/chats/${chat.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archived: !chat.archived }),
+  });
+  loadChatList();
+}
+
 async function deleteHomeChat(sessionId) {
   if (!confirm('Delete this chat?')) return;
   await fetch(`/api/chats/${sessionId}`, { method: 'DELETE' });
@@ -139,15 +155,46 @@ async function deleteHomeChat(sessionId) {
 async function loadChatList() {
   if (chatSearchEl && chatSearchEl.value.trim()) return;
   try {
-    const res = await fetch('/api/chats');
+    const res = await fetch('/api/chats?archived=true');
     const data = await res.json();
     const chats = data.chats || [];
+    const active = chats.filter(c => !c.archived);
+    const archived = chats.filter(c => c.archived);
+
     chatListEl.innerHTML = '';
-    if (chats.length === 0) {
+
+    if (active.length === 0 && archived.length === 0) {
       chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No previous chats</p>';
       return;
     }
-    for (const chat of chats) chatListEl.appendChild(buildHomeChatItem(chat));
+
+    for (const chat of active) chatListEl.appendChild(buildHomeChatItem(chat));
+
+    if (archived.length > 0) {
+      const toggle = document.createElement('button');
+      toggle.className = 'w-full text-left px-4 py-2 mt-1 text-xs text-gray-700 hover:text-gray-500 transition-colors flex items-center gap-1';
+      toggle.dataset.open = 'false';
+      const arrow = document.createElement('span');
+      arrow.textContent = '▶';
+      const label = document.createElement('span');
+      label.textContent = `Archived (${archived.length})`;
+      toggle.appendChild(arrow);
+      toggle.appendChild(label);
+
+      const section = document.createElement('div');
+      section.className = 'hidden';
+      for (const chat of archived) section.appendChild(buildHomeChatItem(chat));
+
+      toggle.addEventListener('click', () => {
+        const open = toggle.dataset.open === 'true';
+        toggle.dataset.open = String(!open);
+        arrow.textContent = open ? '▶' : '▼';
+        section.classList.toggle('hidden', open);
+      });
+
+      chatListEl.appendChild(toggle);
+      chatListEl.appendChild(section);
+    }
   } catch {
     chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">Failed to load chats</p>';
   }
@@ -638,6 +685,7 @@ function onBriefingReady(data) {
   refreshCalendarTile();
   loadTasksTile();
   loadEmailTile();
+  loadRemindersTile();
 }
 
 async function loadBriefing(force = false) {
@@ -823,6 +871,50 @@ async function loadEmailTile(force = false) {
     // Non-fatal
   }
 }
+
+// --- Independent reminders loading ---
+
+async function loadRemindersTile() {
+  try {
+    const res = await fetch('/api/reminders');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.reminders || data.reminders.length === 0) return;
+
+    const tilesEl = document.getElementById('briefing-tiles');
+    if (!tilesEl || tilesEl.classList.contains('hidden')) return;
+
+    const existing = tilesEl.querySelector('.reminders-tile');
+    const newTile = buildRemindersTile(data.reminders);
+    newTile.classList.add('reminders-tile');
+
+    if (existing) {
+      existing.parentNode.replaceChild(newTile, existing);
+    } else {
+      tilesEl.appendChild(newTile);
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+// --- Quick chat ---
+
+const quickInput = document.getElementById('quick-input');
+const quickSend = document.getElementById('quick-send');
+
+function launchChat(text) {
+  if (!text.trim()) return;
+  const sessionId = crypto.randomUUID();
+  localStorage.setItem('active_session_id', sessionId);
+  localStorage.setItem('pending_message', text.trim());
+  window.location.href = '/chat';
+}
+
+quickSend.addEventListener('click', () => launchChat(quickInput.value));
+quickInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); launchChat(quickInput.value); }
+});
 
 // --- Init ---
 

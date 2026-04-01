@@ -154,6 +154,14 @@ function buildChatItem(chat) {
   renameBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
   renameBtn.addEventListener('click', (e) => { e.stopPropagation(); startInlineRename(chat, nameEl); });
 
+  const archiveBtn = document.createElement('button');
+  archiveBtn.className = 'p-1 text-gray-600 hover:text-yellow-400 rounded transition-colors';
+  archiveBtn.title = chat.archived ? 'Unarchive' : 'Archive';
+  archiveBtn.innerHTML = chat.archived
+    ? `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12v4m4-4v4"/></svg>`
+    : `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12"/></svg>`;
+  archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleArchive(chat, isActive); });
+
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'p-1 text-gray-600 hover:text-red-400 rounded transition-colors';
   deleteBtn.title = 'Delete chat';
@@ -161,6 +169,7 @@ function buildChatItem(chat) {
   deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteChatById(chat.id, isActive); });
 
   actions.appendChild(renameBtn);
+  actions.appendChild(archiveBtn);
   actions.appendChild(deleteBtn);
   item.appendChild(btn);
   item.appendChild(actions);
@@ -201,6 +210,17 @@ function startInlineRename(chat, nameEl) {
   });
 }
 
+async function toggleArchive(chat, isActive) {
+  const newArchived = !chat.archived;
+  await fetch(`/api/chats/${chat.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archived: newArchived }),
+  });
+  if (newArchived && isActive) newChat();
+  else loadChatList();
+}
+
 async function deleteChatById(sessionId, isActive) {
   if (!confirm('Delete this chat?')) return;
   await fetch(`/api/chats/${sessionId}`, { method: 'DELETE' });
@@ -209,19 +229,53 @@ async function deleteChatById(sessionId, isActive) {
 }
 
 async function loadChatList() {
-  if (chatSearchEl && chatSearchEl.value.trim()) return; // don't overwrite search results
+  if (chatSearchEl && chatSearchEl.value.trim()) return;
   try {
-    const res = await fetch('/api/chats');
+    const res = await fetch('/api/chats?archived=true');
     const data = await res.json();
     const chats = data.chats || [];
+    const active = chats.filter(c => !c.archived);
+    const archived = chats.filter(c => c.archived);
+
     chatListEl.innerHTML = '';
-    if (chats.length === 0) {
+
+    if (active.length === 0 && archived.length === 0) {
       chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">No previous chats</p>';
       return;
     }
-    for (const chat of chats) {
+
+    for (const chat of active) {
       chatListEl.appendChild(buildChatItem(chat));
       if (chat.id === SESSION_ID && chat.name) chatTitle.textContent = chat.name;
+    }
+
+    if (archived.length > 0) {
+      const toggle = document.createElement('button');
+      toggle.className = 'w-full text-left px-4 py-2 mt-1 text-xs text-gray-700 hover:text-gray-500 transition-colors flex items-center gap-1';
+      toggle.dataset.open = 'false';
+
+      const arrow = document.createElement('span');
+      arrow.textContent = '▶';
+      arrow.className = 'text-xs transition-transform';
+      const label = document.createElement('span');
+      label.textContent = `Archived (${archived.length})`;
+
+      toggle.appendChild(arrow);
+      toggle.appendChild(label);
+
+      const archivedSection = document.createElement('div');
+      archivedSection.className = 'hidden';
+      for (const chat of archived) archivedSection.appendChild(buildChatItem(chat));
+
+      toggle.addEventListener('click', () => {
+        const open = toggle.dataset.open === 'true';
+        toggle.dataset.open = String(!open);
+        arrow.textContent = open ? '▶' : '▼';
+        archivedSection.classList.toggle('hidden', open);
+      });
+
+      chatListEl.appendChild(toggle);
+      chatListEl.appendChild(archivedSection);
     }
   } catch {
     chatListEl.innerHTML = '<p class="text-gray-600 text-xs px-4 py-3">Failed to load chats</p>';
@@ -800,3 +854,19 @@ initVoice();
 loadHistory();
 loadChatList();
 checkBriefingBadge();
+
+// Auto-send a message passed from the home page quick-chat input
+const _pending = localStorage.getItem('pending_message');
+if (_pending) {
+  localStorage.removeItem('pending_message');
+  // Wait for socket to open before sending
+  const _sendPending = () => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      inputEl.value = _pending;
+      sendMessage();
+    } else {
+      setTimeout(_sendPending, 150);
+    }
+  };
+  setTimeout(_sendPending, 300);
+}

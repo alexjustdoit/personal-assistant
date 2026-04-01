@@ -30,6 +30,13 @@ _EMAIL_HINT = re.compile(
     r"\b(email|emails|inbox|mail|messages?)\b",
     re.I,
 )
+_SESSION_HINT = re.compile(
+    r"\b(session|last week|this week|what did (i|we) (work on|do|build|implement|fix|add)|"
+    r"what (have i|was i|were we) (working on|doing)|recent work|"
+    r"(tam copilot|discovery assistant|personal assistant) (progress|update|changes|status)|"
+    r"what did (claude|you) (do|help)|recap|summary of (work|session))\b",
+    re.I,
+)
 
 _SEARCH_SYSTEM = "You are a search router. Reply with JSON only, no explanation."
 _SEARCH_PROMPT = (
@@ -253,12 +260,18 @@ async def chat_websocket(websocket: WebSocket):
                 detect_tasks["ignore_site"] = asyncio.create_task(_detect_ignore_site(user_message))
             if user_message and email_enabled() and _EMAIL_HINT.search(user_message):
                 detect_tasks["email"] = asyncio.create_task(fetch_emails())
+            from backend.services.sessions_reader import is_session_query, search_sessions
+            if user_message and is_session_query(user_message):
+                detect_tasks["sessions"] = asyncio.create_task(
+                    asyncio.to_thread(search_sessions, user_message)
+                )
 
             search_result = None
             todoist_result = None
             govee_result = None
             ignore_site_result = None
             email_result = None
+            sessions_result = []
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
@@ -271,6 +284,8 @@ async def chat_websocket(websocket: WebSocket):
                     ignore_site_result = detect_tasks["ignore_site"].result() if not detect_tasks["ignore_site"].exception() else None
                 if "email" in detect_tasks:
                     email_result = detect_tasks["email"].result() if not detect_tasks["email"].exception() else None
+                if "sessions" in detect_tasks:
+                    sessions_result = detect_tasks["sessions"].result() if not detect_tasks["sessions"].exception() else []
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -339,6 +354,13 @@ async def chat_websocket(websocket: WebSocket):
                     system_prompt += f"\n\nRecent emails ({len(email_result)} total):\n{lines}"
                 else:
                     system_prompt += "\n\n[Email] No recent emails found."
+
+            # --- Work sessions ---
+            if sessions_result:
+                lines = "\n\n---\n\n".join(
+                    f"[{s['source']}]\n{s['excerpt']}" for s in sessions_result
+                )
+                system_prompt += f"\n\nContext from past work sessions:\n{lines}"
 
             # --- Save & build messages ---
             if user_message:

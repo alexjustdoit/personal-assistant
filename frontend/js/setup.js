@@ -179,6 +179,86 @@ function addEmailAccount(initial = false) {
 
 document.getElementById('add-email-btn').addEventListener('click', () => addEmailAccount(false));
 
+// --- Govee test ---
+
+document.getElementById('test-govee-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('test-govee-btn');
+  const result = document.getElementById('govee-test-result');
+  const api_key = document.getElementById('govee-key').value.trim();
+  if (!api_key) { result.textContent = 'Enter an API key first'; result.className = 'text-sm text-yellow-400'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  result.textContent = '';
+  result.className = 'text-sm';
+
+  try {
+    const res = await fetch('/api/setup/test-govee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key }),
+    });
+    const data = await res.json();
+    if (data.connected) {
+      result.textContent = `✓ Connected — ${data.device_count} device${data.device_count !== 1 ? 's' : ''} found`;
+      result.className = 'text-sm text-green-400';
+    } else {
+      result.textContent = `✗ ${data.error || 'Connection failed'}`;
+      result.className = 'text-sm text-red-400';
+    }
+  } catch {
+    result.textContent = '✗ Request failed';
+    result.className = 'text-sm text-red-400';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test connection';
+  }
+});
+
+// --- Email test ---
+
+document.getElementById('test-email-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('test-email-btn');
+  const result = document.getElementById('email-test-result');
+
+  const firstBlock = document.querySelector('#email-accounts-list [data-email-idx]');
+  if (!firstBlock) { result.textContent = 'No account configured'; result.className = 'text-sm text-yellow-400'; return; }
+
+  const server = firstBlock.querySelector('.email-server').value.trim();
+  const port = parseInt(firstBlock.querySelector('.email-port').value) || 993;
+  const username = firstBlock.querySelector('.email-username').value.trim();
+  const password = firstBlock.querySelector('.email-password').value;
+
+  if (!server || !username) { result.textContent = 'Enter server and email first'; result.className = 'text-sm text-yellow-400'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  result.textContent = '';
+  result.className = 'text-sm';
+
+  try {
+    const res = await fetch('/api/setup/test-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server, port, username, password }),
+    });
+    const data = await res.json();
+    if (data.connected) {
+      result.textContent = '✓ Connected successfully';
+      result.className = 'text-sm text-green-400';
+    } else {
+      result.textContent = `✗ ${data.error || 'Login failed'}`;
+      result.className = 'text-sm text-red-400';
+    }
+  } catch {
+    result.textContent = '✗ Request failed';
+    result.className = 'text-sm text-red-400';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test first account';
+  }
+});
+
 // --- Build config object ---
 
 function buildConfig() {

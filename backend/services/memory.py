@@ -74,9 +74,15 @@ class MemoryService:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS chat_names (
                     session_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL
+                    name TEXT NOT NULL,
+                    archived INTEGER DEFAULT 0
                 )
             """)
+            # Migrate: add archived column if it doesn't exist yet
+            try:
+                conn.execute("ALTER TABLE chat_names ADD COLUMN archived INTEGER DEFAULT 0")
+            except Exception:
+                pass
             conn.commit()
 
     def _run_sync(self, fn, *args):
@@ -93,10 +99,10 @@ class MemoryService:
     def get_history(self, session_id: str, limit: int = 40) -> list[dict]:
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
-                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                "SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
                 (session_id, limit),
             ).fetchall()
-        return [{"role": r, "content": c} for r, c in reversed(rows)]
+        return [{"role": r, "content": c, "timestamp": t} for r, c, t in reversed(rows)]
 
     # --- ChromaDB: personal memory ---
 
@@ -128,6 +134,20 @@ class MemoryService:
         results = col.query(query_texts=[text], n_results=1)
         if results["ids"] and results["ids"][0]:
             col.delete(ids=[results["ids"][0][0]])
+
+    def list_memories(self) -> list[dict]:
+        col = self._get_collection()
+        if col.count() == 0:
+            return []
+        result = col.get(include=["documents", "metadatas"])
+        return [
+            {"id": id_, "text": doc, "timestamp": (meta or {}).get("timestamp", "")}
+            for id_, doc, meta in zip(result["ids"], result["documents"], result["metadatas"])
+        ]
+
+    def delete_memory_by_id(self, memory_id: str):
+        col = self._get_collection()
+        col.delete(ids=[memory_id])
 
     # --- SQLite: reminders ---
 
@@ -198,9 +218,10 @@ class MemoryService:
 
     # --- SQLite: chat list ---
 
-    def get_chats(self) -> list[dict]:
+    def get_chats(self, include_archived: bool = False) -> list[dict]:
         with sqlite3.connect(DB_PATH) as conn:
-            rows = conn.execute("""
+            archived_filter = "" if include_archived else "AND (cn.archived IS NULL OR cn.archived = 0)"
+            rows = conn.execute(f"""
                 SELECT
                     m.session_id,
                     MIN(m.timestamp) AS created_at,
@@ -209,16 +230,35 @@ class MemoryService:
                         (SELECT content FROM messages
                          WHERE session_id = m.session_id AND role = 'user'
                          ORDER BY id LIMIT 1)
-                    ) AS name
+                    ) AS name,
+                    COALESCE(cn.archived, 0) AS archived
                 FROM messages m
                 LEFT JOIN chat_names cn ON m.session_id = cn.session_id
                 GROUP BY m.session_id
+                {archived_filter}
                 ORDER BY last_active DESC
             """).fetchall()
         return [
-            {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2]}
+            {"id": r[0], "name": r[3] or "New chat", "created_at": r[1], "last_active": r[2], "archived": bool(r[4])}
             for r in rows
         ]
+
+    def archive_chat(self, session_id: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO chat_names (session_id, name, archived) VALUES (?, COALESCE((SELECT name FROM chat_names WHERE session_id = ?), ''), 1) "
+                "ON CONFLICT(session_id) DO UPDATE SET archived = 1",
+                (session_id, session_id),
+            )
+            conn.commit()
+
+    def unarchive_chat(self, session_id: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "UPDATE chat_names SET archived = 0 WHERE session_id = ?",
+                (session_id,),
+            )
+            conn.commit()
 
     def delete_chat(self, session_id: str):
         with sqlite3.connect(DB_PATH) as conn:

@@ -128,9 +128,10 @@ async def get_history(session_id: str):
 
 
 @app.get("/api/chats")
-async def get_chats():
+async def get_chats(archived: str = "false"):
     from backend.services.memory import memory_service
-    return {"chats": memory_service.get_chats()}
+    include_archived = archived.lower() == "true"
+    return {"chats": memory_service.get_chats(include_archived=include_archived)}
 
 
 @app.delete("/api/chats/{session_id}")
@@ -144,10 +145,14 @@ async def delete_chat(session_id: str):
 async def rename_chat(session_id: str, request: Request):
     data = await request.json()
     name = (data.get("name") or "").strip()
-    if not name:
-        return JSONResponse({"error": "name required"}, status_code=400)
+    archived = data.get("archived")
     from backend.services.memory import memory_service
-    await asyncio.to_thread(memory_service.rename_chat, session_id, name)
+    if name:
+        await asyncio.to_thread(memory_service.rename_chat, session_id, name)
+    if archived is True:
+        await asyncio.to_thread(memory_service.archive_chat, session_id)
+    elif archived is False:
+        await asyncio.to_thread(memory_service.unarchive_chat, session_id)
     return {"ok": True}
 
 
@@ -258,6 +263,81 @@ async def get_providers():
         "providers": llm_router.available_providers(),
         "default": llm_router.default_provider_id,
     }
+
+
+@app.get("/api/memories")
+async def list_memories():
+    from backend.services.memory import memory_service
+    try:
+        mems = await asyncio.to_thread(memory_service.list_memories)
+        return {"memories": sorted(mems, key=lambda m: m.get("timestamp", ""), reverse=True)}
+    except Exception:
+        return {"memories": []}
+
+
+@app.delete("/api/memories/{memory_id}")
+async def delete_memory(memory_id: str):
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.delete_memory_by_id, memory_id)
+    return {"ok": True}
+
+
+@app.get("/api/reminders")
+async def get_reminders():
+    from backend.services.memory import memory_service
+    reminders = await asyncio.to_thread(memory_service.get_pending_reminders)
+    return {"reminders": reminders}
+
+
+@app.post("/api/setup/test-govee")
+async def test_govee(request: Request):
+    data = await request.json()
+    api_key = data.get("api_key", "").strip()
+    if not api_key:
+        return {"connected": False, "error": "No API key provided"}
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                "https://developer-api.govee.com/v1/devices",
+                headers={"Govee-API-Key": api_key},
+                timeout=10,
+            )
+            if res.status_code == 200:
+                devices = res.json().get("data", {}).get("devices", [])
+                return {"connected": True, "device_count": len(devices)}
+            return {"connected": False, "error": f"HTTP {res.status_code}"}
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/setup/test-email")
+async def test_email(request: Request):
+    import imaplib
+    data = await request.json()
+    server = data.get("server", "").strip()
+    port = int(data.get("port", 993))
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not server or not username:
+        return {"connected": False, "error": "Server and username required"}
+
+    def _test():
+        mail = imaplib.IMAP4_SSL(server, port)
+        mail.login(username, password)
+        mail.logout()
+
+    try:
+        await asyncio.to_thread(_test)
+        return {"connected": True}
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.get("/memories")
+async def serve_memories():
+    if not is_configured():
+        return RedirectResponse("/setup")
+    return FileResponse(frontend_path / "memories.html")
 
 
 @app.get("/api/voice/status")
