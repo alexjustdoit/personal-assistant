@@ -18,8 +18,13 @@ A self-hosted AI assistant that runs on your local machine. Accessible from any 
 - **Email** — unread emails ranked by importance surfaced in the home dashboard and chat
 - **Activity tracking** — passive Windows browser/app activity logged as context; Mac agent syncs via iCloud
 - **Work session history** — ask "what did I work on last week?" and the assistant reads your Claude Code session files
-- **Multi-chat** — full conversation history, per-chat rename/archive/delete, and sidebar search
+- **Multi-chat** — full conversation history, per-chat rename/archive/pin/delete, sidebar search, and edit sent messages
 - **Quick chat** — type a message on the home page and go straight into a new conversation
+- **Document reading** — paste or attach a PDF/text file in chat; content injected as context (up to 12k chars)
+- **Recurring reminders** — set daily, weekly, weekday, or custom-interval reminders; auto-requeued after firing
+- **Calendar write** — create calendar events from chat via CalDAV
+- **Code highlighting** — syntax-highlighted code blocks in assistant responses via highlight.js
+- **Runtime config editing** — update config values (news topics, city, etc.) through chat without restarting
 
 ## Requirements
 
@@ -397,3 +402,5 @@ The app recreates `data/` automatically on next start.
 - [x] Phase 8 — Activity tracking (Windows + Mac agent via iCloud), notes watcher, Claude Code memory
 - [x] Phase 9 — Chat polish (markdown, timestamps, stop button, export, archive, quick-chat, work history query)
 - [x] Phase 10 — Reminders UI, weekly digest, settings page, browser notifications, memory management
+- [x] Phase 11 — Calendar write (CalDAV), document/PDF reading, home quick-tiles, recurring reminders, code highlighting, runtime config editing, keyboard shortcuts
+- [x] Phase 12 — Edit messages, SW background notifications, pin chats, reminder filter, inline memory editing, context badge, Todoist complete from home, stream error recovery, calendar read in chat, notification deep-links, quick-add reminder on home

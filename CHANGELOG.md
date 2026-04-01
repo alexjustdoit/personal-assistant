@@ -8,8 +8,111 @@ All notable changes to this project are documented here.
 
 ### Next up
 
-- **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
-- **Calendar write** — create events from chat
+- **Test isolation** — fix `test_chat_parsing.py` `sys.modules` bleed when all test files are collected together (`conftest.py` or `--import-mode=importlib`)
+- **v1.0 checklist** — define threshold and remaining gaps
+
+---
+
+## [0.20] — 2026-03-31
+
+### Added — Calendar read in chat
+- User can ask "what's on my calendar?" and the assistant reads upcoming events from all configured iCal sources and injects them as context
+
+### Added — Multi-task creation
+- `add_many` Todoist intent: LLM can detect a list of tasks in a single message and create them all in one shot
+- Greedy JSON regex fix (`\{.*\}`) applied to all `_detect_*` functions — was `\{.*?\}` (non-greedy), which broke nested arrays like `add_many`
+
+### Added — Notification click opens app
+- Clicking an ntfy/browser notification now deep-links into the app (chat or reminders page as appropriate) via `notificationclick` handler in `sw.js`
+
+### Added — Expandable context badge
+- Context badge in chat header shows which sources were injected (memory, calendar, notes, etc.) for the last message; click to expand the full list
+
+### Added — Pinned chats on home
+- Pinned chats appear in a dedicated section at the top of the home page recent chats list
+
+### Added — Quick-add reminder on home
+- Reminder quick-add input directly on the home page (no need to navigate to `/reminders`)
+
+### Fixed — Archive filter in get_chats()
+- `GROUP BY m.session_id AND (condition)` was silently broken; corrected to proper `HAVING COALESCE(cn.archived,0)=0`
+
+---
+
+## [0.19] — 2026-03-31
+
+### Added — Stream error recovery
+- If the WebSocket drops mid-stream, the frontend reconnects and replays the partial response; no lost tokens
+
+### Added — Todoist complete from home tile
+- "Done" button on each task in the home tasks tile marks it complete via Todoist API without leaving the home page
+
+### Added — Pin chats
+- Pin/unpin any chat from the sidebar; pinned chats float to the top of both the home and chat sidebars
+- `PATCH /api/chats/{session_id}` extended to accept `{pinned: true/false}`
+- `pin_chat()` / `unpin_chat()` in `memory_service`
+
+### Added — Reminder filter
+- Search/filter input on `/reminders` page; filters the visible list client-side in real time against `_allReminders` array
+
+### Added — Inline memory editing
+- Click any memory on `/memories` to edit the text in place; `PATCH /api/memories/{id}` saves the updated text
+- `update_memory_text()` in `memory_service`
+
+### Added — Context badge
+- Chat header badge showing how many context items (memories, notes, calendar, etc.) were injected into the last message; pulses briefly on each new injection
+
+---
+
+## [0.18] — 2026-03-31
+
+### Added — Edit message
+- Click any sent user message to edit it inline; submitting re-sends from that point and trims subsequent history
+
+### Added — Service worker background notifications
+- Reminder notifications now fire via the service worker even when the tab is in the background or the screen is locked
+
+### Added — Email accounts in settings
+- Email accounts (IMAP server, port, username, password) now editable from `/settings` without re-running the setup wizard
+
+---
+
+## [0.17] — 2026-03-31
+
+### Added — Code syntax highlighting
+- Code blocks in assistant responses are highlighted via highlight.js (injected after `finishStreaming()`)
+
+### Added — Keyboard shortcuts
+- `Ctrl+Enter` / `Cmd+Enter` — send message
+- `Ctrl+K` — focus search in sidebar
+- `Escape` — clear sidebar search / close modals
+
+### Added — CalDAV test button
+- "Test connection" button in the CalDAV section of settings; hits the configured CalDAV URL and reports success or auth error
+
+### Added — Recurring reminders
+- Reminders now support recurrence: daily, weekly, weekdays, or custom interval
+- `recurrence` TEXT column in reminders table (automatic migration on startup)
+- `_next_occurrence()` helper in scheduler; after a recurring reminder fires, it re-queues itself for the next due time
+
+### Added — Runtime config editing via chat
+- Say "change my news topics to tech and science" or "update my city to Seattle" — assistant detects config-edit intent, mutates the module-level config dict in place, and calls `save_config()` to write YAML; no restart required
+
+---
+
+## [0.16] — 2026-03-31
+
+### Added — Home quick-tiles
+- Calendar and tasks tiles on the home page load independently at page init via `loadQuickTiles()`; 5-minute auto-refresh; separate from the morning briefing
+
+### Added — CalDAV calendar write
+- Create calendar events from chat: "schedule a meeting with Sarah on Friday at 2pm"
+- `calendar_service.py` `create_event()` method — CalDAV PUT using httpx + icalendar library
+- `caldav_url`, `caldav_username`, `caldav_password` config keys under `config.calendar`
+
+### Added — Document / PDF reading
+- Paste or attach a document (PDF, .txt, .md) in chat; text extracted and injected into the system prompt (up to 12k chars)
+- `POST /api/upload/document` — pypdf for PDFs, plain read for text files
 
 ---
 
