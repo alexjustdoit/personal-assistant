@@ -61,6 +61,12 @@ function populate(cfg) {
   setValue('s-tts-voice', tts.voice || 'af_heart');
   document.getElementById('s-tts-speed').value = tts.speed ?? 1.0;
 
+  // Calendar write (CalDAV)
+  const cal = cfg.calendar || {};
+  setValue('s-caldav-url', cal.caldav_url || '');
+  setValue('s-caldav-username', cal.caldav_username || '');
+  setPlaceholder('s-caldav-password', cal.caldav_password || '');
+
   // Notes folders
   const folders = Array.isArray(cfg.notes_folders) ? cfg.notes_folders : [];
   const foldersEl = document.getElementById('s-notes-folders');
@@ -180,6 +186,14 @@ function buildUpdatedConfig() {
     voice: document.getElementById('s-tts-voice').value,
     speed: parseFloat(document.getElementById('s-tts-speed').value) || 1.0,
   };
+
+  // Calendar write (CalDAV)
+  cfg.calendar = cfg.calendar || {};
+  const caldavUrl = document.getElementById('s-caldav-url').value.trim();
+  if (caldavUrl) cfg.calendar.caldav_url = caldavUrl;
+  const caldavUser = document.getElementById('s-caldav-username').value.trim();
+  if (caldavUser) cfg.calendar.caldav_username = caldavUser;
+  maybeUpdateKey('s-caldav-password', null, ['calendar', 'caldav_password']);
 
   // Notes folders
   const folderInputs = document.querySelectorAll('#s-notes-folders input');

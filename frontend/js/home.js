@@ -657,7 +657,7 @@ function renderBriefing(data) {
   const hasNews = data.news && data.news.length > 0;
   const hasReminders = data.reminders && data.reminders.length > 0;
 
-  const hasAnything = hasWeather || data.events !== undefined || hasNews || hasReminders;
+  const hasAnything = hasWeather || hasNews || hasReminders;
   if (!hasAnything) {
     document.getElementById('briefing-loading').classList.add('hidden');
     document.getElementById('briefing-error').classList.remove('hidden');
@@ -675,18 +675,8 @@ function renderBriefing(data) {
     container.appendChild(summaryCard);
   }
 
-  // Top row: weather + calendar always side by side
-  const hasCalendar = data.events !== undefined;
-  if (hasWeather && hasCalendar) {
-    const row = document.createElement('div');
-    row.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
-    row.appendChild(buildWeatherTile(data.weather, data.forecast));
-    row.appendChild(buildCalendarTile(data.events));
-    container.appendChild(row);
-  } else if (hasWeather) {
+  if (hasWeather) {
     container.appendChild(buildWeatherTile(data.weather, data.forecast));
-  } else if (hasCalendar) {
-    container.appendChild(buildCalendarTile(data.events));
   }
 
   if (hasNews) container.appendChild(buildNewsSection(data.news));
@@ -720,8 +710,6 @@ function onBriefingReady(data) {
   stopBriefingPoll();
   document.getElementById('refresh-icon').classList.remove('spin');
   renderBriefing(data);
-  refreshCalendarTile();
-  loadTasksTile();
   loadEmailTile();
   loadRemindersTile();
   loadForecast();
@@ -848,24 +836,36 @@ async function loadProviders() {
   });
 }
 
-// --- Calendar live refresh ---
+// --- Quick tiles: calendar + tasks (loaded independently of briefing) ---
 
-async function refreshCalendarTile() {
-  try {
-    const res = await fetch('/api/calendar/events');
-    if (!res.ok) return;
-    const data = await res.json();
-    const existing = document.getElementById('calendar-tile');
-    if (!existing) return;
-    const newTile = buildCalendarTile(data.events);
-    existing.parentNode.replaceChild(newTile, existing);
-  } catch {
-    // Non-fatal — skip this refresh cycle
+async function loadQuickTiles() {
+  const container = document.getElementById('quick-tiles');
+
+  const [calResult, taskResult] = await Promise.allSettled([
+    fetch('/api/calendar/events').then(r => r.ok ? r.json() : Promise.reject()),
+    fetch('/api/todoist/tasks').then(r => r.ok ? r.json() : Promise.reject()),
+  ]);
+
+  const calData = calResult.status === 'fulfilled' ? calResult.value : null;
+  const taskData = taskResult.status === 'fulfilled' ? taskResult.value : null;
+
+  container.innerHTML = '';
+  let hasContent = false;
+
+  if (calData) {
+    container.appendChild(buildCalendarTile(calData.events));
+    hasContent = true;
   }
+
+  if (taskData?.enabled) {
+    container.appendChild(buildTasksTile(taskData.tasks));
+    hasContent = true;
+  }
+
+  container.classList.toggle('hidden', !hasContent);
 }
 
-const CALENDAR_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
-setInterval(refreshCalendarTile, CALENDAR_REFRESH_MS);
+setInterval(loadQuickTiles, 5 * 60 * 1000); // refresh every 5 min
 
 // --- Email tile ---
 
@@ -1025,5 +1025,6 @@ setInterval(pollBrowserNotifications, 30000);
 // --- Init ---
 
 setGreeting();
+loadQuickTiles();
 loadProviders().then(() => loadBriefing());
 loadChatList();

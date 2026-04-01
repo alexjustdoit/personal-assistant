@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 import httpx
 from datetime import date, datetime, time, timedelta
 from backend.config import config
@@ -126,6 +127,48 @@ class CalendarService:
 
     async def get_todays_events(self) -> list[dict]:
         return await self.get_events()
+
+    def caldav_enabled(self) -> bool:
+        return bool(config.get("calendar", {}).get("caldav_url", ""))
+
+    async def create_event(self, title: str, start_dt: datetime, end_dt: datetime, description: str = "") -> bool:
+        """Create a calendar event via CalDAV PUT."""
+        cal_cfg = config.get("calendar", {})
+        caldav_url = cal_cfg.get("caldav_url", "").rstrip("/")
+        username = cal_cfg.get("caldav_username", "")
+        password = cal_cfg.get("caldav_password", "")
+        if not caldav_url:
+            return False
+
+        from icalendar import Calendar, Event
+        uid = str(uuid.uuid4())
+        cal = Calendar()
+        cal.add("prodid", "-//Personal Assistant//EN")
+        cal.add("version", "2.0")
+
+        event = Event()
+        event.add("summary", title)
+        event.add("dtstart", start_dt)
+        event.add("dtend", end_dt)
+        event.add("uid", uid)
+        if description:
+            event.add("description", description)
+        cal.add_component(event)
+
+        event_url = f"{caldav_url}/{uid}.ics"
+        try:
+            auth = (username, password) if username else None
+            async with httpx.AsyncClient() as client:
+                res = await client.put(
+                    event_url,
+                    content=cal.to_ical(),
+                    headers={"Content-Type": "text/calendar; charset=utf-8"},
+                    auth=auth,
+                    timeout=10,
+                )
+            return res.status_code in (200, 201, 204)
+        except Exception:
+            return False
 
 
 calendar_service = CalendarService()

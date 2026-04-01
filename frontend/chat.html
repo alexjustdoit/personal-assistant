@@ -98,13 +98,27 @@
           <img id="image-preview" class="h-16 w-16 object-cover rounded-lg border border-gray-700 flex-shrink-0" alt="Attached image" />
           <button id="image-remove" class="text-xs text-gray-500 hover:text-gray-300 transition-colors">✕ Remove</button>
         </div>
+        <!-- Document preview -->
+        <div id="doc-preview-area" class="hidden mb-2 flex items-center gap-3 px-1">
+          <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span id="doc-preview-name" class="text-sm text-gray-300 truncate flex-1"></span>
+          <button id="doc-remove" class="text-xs text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0">✕</button>
+        </div>
         <!-- Input row -->
         <div class="flex gap-3">
           <button id="mic-btn" title="Click to record" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-3 rounded-xl text-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">🎤</button>
           <input id="image-input" type="file" accept="image/*" class="hidden" />
+          <input id="doc-input" type="file" accept=".pdf,.txt,.md,.csv" class="hidden" />
           <button id="image-btn" title="Attach image" class="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 px-3 py-3 rounded-xl transition-colors flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </button>
+          <button id="doc-btn" title="Attach document (PDF, txt, md)" class="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 px-3 py-3 rounded-xl transition-colors flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </button>
           <input id="input" type="text" placeholder="Ask me anything…" class="flex-1 bg-gray-800 text-gray-100 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0" autocomplete="off" />

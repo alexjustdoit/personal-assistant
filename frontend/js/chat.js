@@ -30,6 +30,7 @@ function switchToSession(id) {
   currentText = '';
   lastUserMessage = '';
   lastAssistantWrapper = null;
+  clearAttachedDoc();
   messagesEl.innerHTML = '';
   welcomeEl.classList.remove('hidden');
   messagesEl.classList.add('hidden');
@@ -77,6 +78,11 @@ const imageInput = document.getElementById('image-input');
 const imagePreviewArea = document.getElementById('image-preview-area');
 const imagePreviewEl = document.getElementById('image-preview');
 const imageRemoveBtn = document.getElementById('image-remove');
+const docBtn = document.getElementById('doc-btn');
+const docInput = document.getElementById('doc-input');
+const docPreviewArea = document.getElementById('doc-preview-area');
+const docPreviewName = document.getElementById('doc-preview-name');
+const docRemoveBtn = document.getElementById('doc-remove');
 
 // --- Sidebar ---
 
@@ -562,6 +568,39 @@ function setInputEnabled(enabled) {
   if (enabled) inputEl.focus();
 }
 
+// --- Document handling ---
+
+let currentDocData = null;
+
+docBtn.addEventListener('click', () => docInput.click());
+docInput.addEventListener('change', (e) => { if (e.target.files[0]) loadDocumentFile(e.target.files[0]); });
+docRemoveBtn.addEventListener('click', clearAttachedDoc);
+
+async function loadDocumentFile(file) {
+  docPreviewName.textContent = `${file.name} — reading…`;
+  docPreviewArea.classList.remove('hidden');
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch('/api/upload/document', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    currentDocData = { name: data.name, text: data.text };
+    const kb = Math.round(data.length / 100) / 10;
+    docPreviewName.textContent = `${data.name} (${kb}k chars)`;
+  } catch (err) {
+    clearAttachedDoc();
+    appendError(`Failed to read document: ${err.message}`);
+  }
+}
+
+function clearAttachedDoc() {
+  currentDocData = null;
+  docPreviewName.textContent = '';
+  docPreviewArea.classList.add('hidden');
+  docInput.value = '';
+}
+
 // --- Image handling ---
 
 let currentImageData = null;
@@ -649,7 +688,9 @@ function sendMessage() {
 
   inputEl.value = '';
   const imageToSend = currentImageData;
+  const docToSend = currentDocData;
   clearAttachedImage();
+  clearAttachedDoc();
   isStreaming = true;
   sendBtn.classList.add('hidden');
   stopBtn.classList.remove('hidden');
@@ -662,6 +703,7 @@ function sendMessage() {
     content,
     provider: providerSelect.value,
     ...(imageToSend && { image: imageToSend }),
+    ...(docToSend && { document: docToSend }),
   }));
 }
 

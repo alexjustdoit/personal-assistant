@@ -43,6 +43,20 @@ _SESSION_HINT = re.compile(
     re.I,
 )
 
+_CALENDAR_HINT = re.compile(
+    r"\b(schedule|book|create an? event|add (?:an? )?(?:event|meeting|appointment)|put on (?:my )?calendar|block (?:off )?(?:time|my)|meeting|appointment)\b",
+    re.I,
+)
+
+_CALENDAR_SYSTEM = "You detect calendar event creation intents. Reply with JSON only."
+_CALENDAR_PROMPT = (
+    "Does this message want to schedule or create a calendar event?\n"
+    'Message: "{msg}"\n'
+    'Current date/time: {now}\n'
+    'JSON: {{"action": "create", "title": "event title", "start": "natural language date and time", "duration_minutes": 60}} '
+    'or {{"action": null}}'
+)
+
 _SEARCH_SYSTEM = "You are a search router. Reply with JSON only, no explanation."
 _SEARCH_PROMPT = (
     "Does answering this message well require current or real-time information "
@@ -107,6 +121,18 @@ async def extract_reminder(text: str) -> dict | None:
         data = json.loads(json_match.group())
         return data if data.get("task") else None
     except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def _parse_datetime(time_str: str | None) -> "datetime | None":
+    """Parse a natural language time string into a local naive datetime."""
+    if not time_str:
+        return None
+    try:
+        import dateparser
+        dt = dateparser.parse(time_str, settings={"PREFER_DATES_FROM": "future", "RETURN_AS_TIMEZONE_AWARE": False})
+        return dt
+    except Exception:
         return None
 
 
@@ -186,6 +212,24 @@ async def _detect_ignore_site(message: str) -> str | None:
         if m:
             data = json.loads(m.group())
             return data.get("domain") or None
+    except Exception:
+        pass
+    return None
+
+
+async def _detect_calendar(message: str) -> dict | None:
+    from datetime import datetime as _dt
+    now = _dt.now().strftime("%A, %B %d, %Y %I:%M %p")
+    try:
+        response = await llm_router.complete_detect([
+            {"role": "system", "content": _CALENDAR_SYSTEM},
+            {"role": "user", "content": _CALENDAR_PROMPT.format(msg=message, now=now)},
+        ])
+        m = re.search(r"\{.*?\}", response, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            if data.get("action"):
+                return data
     except Exception:
         pass
     return None
@@ -286,6 +330,7 @@ async def chat_websocket(websocket: WebSocket):
             payload = json.loads(data)
             user_message = payload.get("content", "").strip()
             image_data = payload.get("image")  # "data:<media_type>;base64,<data>" or None
+            document = payload.get("document")  # {name, text} or None
             is_regenerate = payload.get("regenerate", False)
 
             if not user_message and not image_data:
@@ -334,6 +379,9 @@ async def chat_websocket(websocket: WebSocket):
                 detect_tasks["todoist"] = asyncio.create_task(_detect_todoist(user_message))
             if user_message and govee_enabled() and _GOVEE_HINT.search(user_message):
                 detect_tasks["govee"] = asyncio.create_task(_detect_govee(user_message))
+            from backend.services.calendar_service import calendar_service
+            if user_message and calendar_service.caldav_enabled() and _CALENDAR_HINT.search(user_message):
+                detect_tasks["calendar"] = asyncio.create_task(_detect_calendar(user_message))
             if user_message and _IGNORE_SITE_HINT.search(user_message):
                 detect_tasks["ignore_site"] = asyncio.create_task(_detect_ignore_site(user_message))
             if user_message and email_enabled() and _EMAIL_HINT.search(user_message):
@@ -350,6 +398,7 @@ async def chat_websocket(websocket: WebSocket):
             ignore_site_result = None
             email_result = None
             sessions_result = []
+            calendar_result = None
             if detect_tasks:
                 await asyncio.gather(*detect_tasks.values(), return_exceptions=True)
                 if "search" in detect_tasks:
@@ -364,6 +413,8 @@ async def chat_websocket(websocket: WebSocket):
                     email_result = detect_tasks["email"].result() if not detect_tasks["email"].exception() else None
                 if "sessions" in detect_tasks:
                     sessions_result = detect_tasks["sessions"].result() if not detect_tasks["sessions"].exception() else []
+                if "calendar" in detect_tasks:
+                    calendar_result = detect_tasks["calendar"].result() if not detect_tasks["calendar"].exception() else None
 
             # --- Web search ---
             if search_result and search_result[0]:
@@ -447,6 +498,30 @@ async def chat_websocket(websocket: WebSocket):
                     f"[{s['source']}]\n{s['excerpt']}" for s in sessions_result
                 )
                 system_prompt += f"\n\nContext from past work sessions:\n{lines}"
+
+            # --- Calendar create ---
+            if calendar_result and calendar_result.get("action") == "create":
+                from datetime import timedelta as _td
+                title = calendar_result.get("title", "Event")
+                start_dt = _parse_datetime(calendar_result.get("start", ""))
+                duration = int(calendar_result.get("duration_minutes") or 60)
+                if start_dt:
+                    end_dt = start_dt + _td(minutes=duration)
+                    ok = await calendar_service.create_event(title, start_dt, end_dt)
+                    if ok:
+                        system_prompt += f'\n\n[Calendar] Created event: "{title}" on {start_dt.strftime("%A, %B %d at %I:%M %p")}. Confirm to the user.'
+                    else:
+                        system_prompt += '\n\n[Calendar] Failed to create the event — check CalDAV settings. Apologize briefly.'
+                else:
+                    system_prompt += f'\n\n[Calendar] Could not parse the event time. Ask the user to clarify when they want to schedule "{title}".'
+
+            # --- Document context ---
+            if document and document.get("text"):
+                doc_text = document["text"]
+                truncated = len(doc_text) > 12000
+                system_prompt += f'\n\nThe user attached a document: "{document.get("name", "document")}"\n\n{doc_text[:12000]}'
+                if truncated:
+                    system_prompt += "\n\n[Note: document was truncated to fit context window]"
 
             # --- Save & build messages ---
             if user_message and not is_regenerate:

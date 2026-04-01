@@ -4,7 +4,7 @@ import sys
 import yaml
 import httpx
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from backend.config import is_configured, CONFIG_PATH, config
@@ -442,3 +442,25 @@ async def serve_settings():
 @app.get("/api/voice/status")
 async def voice_status_fallback():
     return {"stt": False, "tts": False}
+
+
+@app.post("/api/upload/document")
+async def upload_document(file: UploadFile):
+    import io
+    name = file.filename or "document"
+    content = await file.read()
+    text = ""
+    if name.lower().endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(content))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            text = "\n\n".join(p for p in pages if p.strip())
+        except Exception as e:
+            return JSONResponse({"error": f"PDF read failed: {e}"}, status_code=400)
+    else:
+        try:
+            text = content.decode("utf-8", errors="replace")
+        except Exception:
+            return JSONResponse({"error": "Could not decode file as text"}, status_code=400)
+    return {"name": name, "text": text, "length": len(text)}

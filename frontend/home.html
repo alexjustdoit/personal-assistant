@@ -82,7 +82,10 @@
     <main class="flex-1 overflow-y-auto px-4 py-6 pb-0">
       <div class="max-w-2xl mx-auto">
 
-        <!-- Briefing section -->
+        <!-- Quick tiles: calendar + tasks (load independently, no briefing dependency) -->
+        <div id="quick-tiles" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4"></div>
+
+      <!-- Briefing section -->
         <div>
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-xs font-semibold text-gray-600 uppercase tracking-wider" id="briefing-label">Briefing</h2>
