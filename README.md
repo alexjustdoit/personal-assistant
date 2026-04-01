@@ -355,10 +355,21 @@ personal-assistant/
 │   ├── install.sh            # Installs as a launchd job
 │   └── uninstall.sh
 ├── data/                     # gitignored — conversations, memory, chroma DB
+├── tests/                    # pytest test suite (run with: pytest)
 ├── run.py                    # Start the server
 ├── config.yaml.example       # Reference config
+├── pytest.ini                # Test config
 └── requirements.txt
 ```
+
+## Running Tests
+
+```powershell
+pip install pytest
+pytest
+```
+
+65 tests covering scheduler recurrence logic, memory service (SQLite), chat JSON parsing, briefing helpers, notification queue, and activity tracker.
 
 ## Data & Resetting
 
@@ -404,3 +415,4 @@ The app recreates `data/` automatically on next start.
 - [x] Phase 10 — Reminders UI, weekly digest, settings page, browser notifications, memory management
 - [x] Phase 11 — Calendar write (CalDAV), document/PDF reading, home quick-tiles, recurring reminders, code highlighting, runtime config editing, keyboard shortcuts
 - [x] Phase 12 — Edit messages, SW background notifications, pin chats, reminder filter, inline memory editing, context badge, Todoist complete from home, stream error recovery, calendar read in chat, notification deep-links, quick-add reminder on home
+- **v1.0** ✓
