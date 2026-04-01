@@ -75,20 +75,23 @@ email:
 claude_memory:
   # Optional — path to your Claude Code memory folder (iCloud-synced markdown files).
   # Ingested as supplementary context. Leave blank to disable.
-  # Windows: C:\Users\YourName\iCloudDrive\.claude\projects\<project-folder>\memory
+  # Tip: use forward slashes or plain backslashes — no need to double them up.
+  # Windows: C:/Users/YourName/iCloudDrive/.claude/projects/<project-folder>/memory
   # Mac:     ~/Library/Mobile Documents/com~apple~CloudDocs/.claude/projects/<project-folder>/memory
   path: ""
 
 # Folders to watch and index as searchable context.
 # All paths are created automatically if they don't exist.
 # Keep this list narrow — broad paths (e.g. Documents) will ingest everything recursively.
+# Tip: forward slashes work on Windows too and are simpler to type.
 notes_folders:
-  # - "C:\\Users\\YourName\\Notes\\activity"   # activity logs (add if activity_tracking is enabled)
-  # - "C:\\Users\\YourName\\Notes\\personal"   # your own markdown/text notes
+  # - C:/Users/YourName/Notes/activity    # activity logs (add if activity_tracking is enabled)
+  # - C:/Users/YourName/Notes/personal    # your own markdown/text notes
 
 activity_tracking:
   enabled: false
-  log_folder: ""               # where to write activity log files — should also be in notes_folders
+  log_folder: ""               # e.g. C:/Users/YourName/Notes/activity
+  # where to write activity log files — should also be in notes_folders
   poll_interval_minutes: 30
   eod_summary_time: "22:00"    # time to synthesize a daily summary (24hr, local time)
   ignored_domains: []          # domains to exclude — also manageable via chat ("stop logging X")
