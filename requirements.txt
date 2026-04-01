@@ -24,3 +24,4 @@ recurring-ical-events
 feedparser
 trafilatura
 watchdog
+psutil
