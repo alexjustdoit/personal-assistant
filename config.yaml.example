@@ -8,6 +8,7 @@ llm:
   ollama_url: http://localhost:11434
   quality_model: ollama      # used for quality_required=True tasks
   # briefing_provider: groq  # optional — overrides provider for briefing synthesis only
+  # detection_model: llama3.2:3b  # optional — fast Ollama model for intent classification; falls back to main model
 
 stt:
   enabled: true
@@ -26,6 +27,9 @@ briefing:
   timezone: "America/New_York"  # IANA timezone name
   evening_enabled: false
   evening_time: "18:00"  # 24hr format, end-of-day briefing
+  weekly_enabled: false
+  weekly_day: sunday      # day of week for weekly digest (monday–sunday)
+  weekly_time: "09:00"    # 24hr format
 
 weather:
   enabled: true
@@ -37,6 +41,10 @@ calendar:
   enabled: false
   ical_urls: []          # List of private iCal URLs (Google/Outlook/Apple Calendar)
   # ical_url: ""         # Legacy single-URL format still supported
+  # CalDAV write — required to create events from chat (leave blank to disable)
+  caldav_url: ""         # e.g. https://caldav.icloud.com/ or your Nextcloud CalDAV URL
+  caldav_username: ""    # usually your email address
+  caldav_password: ""    # app password recommended (not your main password)
 
 news:
   enabled: true

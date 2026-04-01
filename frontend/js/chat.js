@@ -369,7 +369,7 @@ async function runChatSearch(query) {
       });
       chatListEl.appendChild(btn);
     }
-  } catch {}
+  } catch (err) { console.warn('Chat search failed:', err); }
 }
 
 // --- WebSocket ---
@@ -1023,7 +1023,7 @@ exportBtn.addEventListener('click', async () => {
     a.download = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  } catch {}
+  } catch (err) { console.warn('Chat export failed:', err); }
 });
 
 // --- Init ---

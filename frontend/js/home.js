@@ -250,7 +250,7 @@ async function runHomeSearch(query) {
       });
       chatListEl.appendChild(btn);
     }
-  } catch {}
+  } catch (err) { console.warn('Chat search failed:', err); }
 }
 
 // --- Time period ---
