@@ -6,10 +6,31 @@ All notable changes to this project are documented here.
 
 ## [Proposed]
 
-### Next up
+### Post-v1.0 backlog
 
-- **Test isolation** — fix `test_chat_parsing.py` `sys.modules` bleed when all test files are collected together (`conftest.py` or `--import-mode=importlib`)
-- **v1.0 checklist** — define threshold and remaining gaps
+- **Background generation + cross-page status** — keep LLM generation running after WS disconnect; sidebar/home polls `/api/chat/status` for a "generating…" badge; client replays buffered tokens on reconnect
+- **Notion session summaries** — fetch Claude Code session summaries from Notion; answer questions about past work via chat ("what did I work on last week?")
+
+---
+
+## [1.0] — 2026-04-01
+
+### Fixed — Test isolation (all 65 tests pass in one invocation)
+- `test_briefing_parsing.py` and `test_chat_parsing.py` were populating `sys.modules` with backend mocks at module-load time; pytest collects all modules before running tests, so `test_memory_service.py`'s module-level imports received mocks before any fixture could clean up
+- Fix: moved all `backend.*` stub setup from module level into `scope="module"` autouse fixtures with save/restore cleanup in both files
+- Added `pytest.ini` (`testpaths = tests`, `--tb=short`) — run all tests with a bare `pytest`
+
+### Fixed — config.yaml.example gaps
+- Added `llm.detection_model` — fast Ollama model for intent classification; was in the settings UI but undocumented in the example
+- Added `briefing.weekly_enabled`, `briefing.weekly_day`, `briefing.weekly_time` — weekly digest scheduler config (added in v0.12) was missing
+- Added `calendar.caldav_url`, `calendar.caldav_username`, `calendar.caldav_password` — CalDAV write config (added in v0.16) was missing
+
+### Fixed — Sidebar title truncation on home page
+- `#chat-list` in `home.html` was missing `overflow-x-hidden`; long chat titles could cause a horizontal scrollbar in the sidebar (`chat.html` already had this)
+
+### Improved — Debugging for user-action failures
+- Added `console.warn` to the 3 catch blocks triggered by user actions: sidebar chat search (home + chat pages) and chat export button
+- Background polling and SW notification fallback catches remain silent — intentional
 
 ---
 
