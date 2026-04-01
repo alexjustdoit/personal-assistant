@@ -431,6 +431,14 @@ function appendMessage(role, content = '', timestamp = null) {
 
   if (role === 'user') {
     lastUserMessage = content;
+    const actions = document.createElement('div');
+    actions.className = 'flex gap-2 mt-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'text-xs text-gray-600 hover:text-gray-400 px-1 py-0.5 rounded transition-colors';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => startEditMessage(wrapper, bubble, content));
+    actions.appendChild(editBtn);
+    wrapper.appendChild(actions);
   } else if (role === 'assistant' && content) {
     lastAssistantWrapper = wrapper;
     const actions = document.createElement('div');
@@ -998,6 +1006,82 @@ document.querySelectorAll('.suggestion-chip').forEach(chip => {
     sendMessage();
   });
 });
+
+// --- Edit message ---
+
+function startEditMessage(wrapper, bubble, originalText) {
+  if (isStreaming) return;
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'max-w-xl w-full bg-indigo-700 text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400';
+  textarea.value = originalText;
+  textarea.rows = Math.max(2, Math.ceil(originalText.length / 55));
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'flex gap-2 mt-1 justify-end';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'text-xs text-gray-500 hover:text-gray-300 px-3 py-1 rounded-lg transition-colors';
+  cancelBtn.textContent = 'Cancel';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors';
+  confirmBtn.textContent = 'Send';
+
+  cancelBtn.addEventListener('click', () => {
+    wrapper.replaceChild(bubble, textarea);
+    btnRow.remove();
+  });
+  confirmBtn.addEventListener('click', () => confirmEdit(wrapper, textarea.value.trim()));
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(wrapper, textarea.value.trim()); }
+    if (e.key === 'Escape') { wrapper.replaceChild(bubble, textarea); btnRow.remove(); }
+  });
+
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(confirmBtn);
+  wrapper.replaceChild(textarea, bubble);
+  wrapper.appendChild(btnRow);
+  textarea.focus();
+  textarea.select();
+}
+
+async function confirmEdit(wrapper, newText) {
+  if (!newText) return;
+  const allWrappers = Array.from(messagesEl.children);
+  const idx = allWrappers.indexOf(wrapper);
+  const countToDelete = allWrappers.length - idx;
+  try {
+    await fetch(`/api/history/${SESSION_ID}/last?count=${countToDelete}`, { method: 'DELETE' });
+  } catch {}
+  for (let i = allWrappers.length - 1; i >= idx; i--) allWrappers[i].remove();
+  inputEl.value = newText;
+  sendMessage();
+}
+
+// --- Browser notifications (fires from chat tab too) ---
+
+async function _showNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification(title, { body, icon: '/static/icon.svg' });
+      return;
+    } catch {}
+  }
+  new Notification(title, { body, icon: '/static/icon.svg' });
+}
+
+async function _pollNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const res = await fetch('/api/notifications/pending');
+    const data = await res.json();
+    for (const n of (data.notifications || [])) _showNotification(n.title, n.body);
+  } catch {}
+}
+
+if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+setInterval(_pollNotifications, 30000);
 
 // --- Keyboard shortcuts ---
 

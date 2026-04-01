@@ -72,6 +72,35 @@ function populate(cfg) {
   const foldersEl = document.getElementById('s-notes-folders');
   foldersEl.innerHTML = '';
   for (const path of folders) addFolderRow(path);
+
+  // Email accounts
+  const accounts = (cfg.email || {}).accounts || [];
+  const emailEl = document.getElementById('s-email-accounts');
+  emailEl.innerHTML = '';
+  if (accounts.length === 0) {
+    addEmailAccountRow();
+  } else {
+    for (const acct of accounts) addEmailAccountRow(acct);
+  }
+}
+
+function addEmailAccountRow(acct = {}) {
+  const block = document.createElement('div');
+  block.className = 'border border-gray-800 rounded-xl p-3 space-y-2';
+  block.innerHTML = `
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs text-gray-500">Account</span>
+      <button type="button" class="email-remove text-gray-600 hover:text-red-400 text-sm transition-colors">✕</button>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <input type="text" class="form-input text-xs email-server" placeholder="imap.gmail.com" value="${acct.server || ''}" spellcheck="false" />
+      <input type="number" class="form-input text-xs email-port" placeholder="993" value="${acct.port || 993}" />
+    </div>
+    <input type="email" class="form-input text-xs email-username" placeholder="you@gmail.com" value="${acct.username || ''}" autocomplete="off" />
+    <input type="password" class="form-input text-xs email-password" placeholder="${acct.password ? '••••••••' : 'Password / App Password'}" autocomplete="new-password" />
+  `;
+  block.querySelector('.email-remove').addEventListener('click', () => block.remove());
+  document.getElementById('s-email-accounts').appendChild(block);
 }
 
 function addFolderRow(path = '') {
@@ -199,12 +228,57 @@ function buildUpdatedConfig() {
   const folderInputs = document.querySelectorAll('#s-notes-folders input');
   cfg.notes_folders = Array.from(folderInputs).map(i => i.value.trim()).filter(Boolean);
 
+  // Email accounts
+  cfg.email = cfg.email || {};
+  const emailBlocks = document.querySelectorAll('#s-email-accounts [class*="border"]');
+  cfg.email.accounts = Array.from(emailBlocks).map(block => {
+    const server = block.querySelector('.email-server').value.trim();
+    const port = parseInt(block.querySelector('.email-port').value) || 993;
+    const username = block.querySelector('.email-username').value.trim();
+    const passwordInput = block.querySelector('.email-password').value;
+    // Find existing account to preserve password if not re-entered
+    const existing = (_originalConfig.email?.accounts || []).find(a => a.username === username);
+    const password = passwordInput || existing?.password || '';
+    return { server, port, username, password };
+  }).filter(a => a.server && a.username);
+
   return cfg;
 }
 
 // --- Save ---
 
 document.getElementById('s-notes-add').addEventListener('click', () => addFolderRow());
+document.getElementById('s-email-add').addEventListener('click', () => addEmailAccountRow());
+
+document.getElementById('s-email-test').addEventListener('click', async () => {
+  const btn = document.getElementById('s-email-test');
+  const result = document.getElementById('s-email-test-result');
+  const firstBlock = document.querySelector('#s-email-accounts [class*="border"]');
+  if (!firstBlock) { result.textContent = 'No accounts configured'; result.className = 'text-xs text-yellow-400'; return; }
+  const server = firstBlock.querySelector('.email-server').value.trim();
+  const port = parseInt(firstBlock.querySelector('.email-port').value) || 993;
+  const username = firstBlock.querySelector('.email-username').value.trim();
+  const password = firstBlock.querySelector('.email-password').value || (_originalConfig.email?.accounts?.[0]?.password || '');
+  if (!server || !username) { result.textContent = 'Enter server and email first'; result.className = 'text-xs text-yellow-400'; return; }
+  btn.disabled = true;
+  result.textContent = 'Testing…';
+  result.className = 'text-xs text-gray-500';
+  try {
+    const res = await fetch('/api/setup/test-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server, port, username, password }),
+    });
+    const data = await res.json();
+    result.textContent = data.connected ? '✓ Connected' : `✗ ${data.error || 'Failed'}`;
+    result.className = `text-xs ${data.connected ? 'text-green-500' : 'text-red-400'}`;
+  } catch {
+    result.textContent = '✗ Request failed';
+    result.className = 'text-xs text-red-400';
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 document.getElementById('test-caldav-btn').addEventListener('click', async () => {
   const btn = document.getElementById('test-caldav-btn');

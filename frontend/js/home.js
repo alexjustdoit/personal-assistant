@@ -1007,13 +1007,25 @@ async function requestNotificationPermission() {
   }
 }
 
+async function showNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification(title, { body, icon: '/static/icon.svg' });
+      return;
+    } catch {}
+  }
+  new Notification(title, { body, icon: '/static/icon.svg' });
+}
+
 async function pollBrowserNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
     const res = await fetch('/api/notifications/pending');
     const data = await res.json();
     for (const n of (data.notifications || [])) {
-      new Notification(n.title, { body: n.body, icon: '/static/icon.svg' });
+      showNotification(n.title, n.body);
     }
   } catch {}
 }
