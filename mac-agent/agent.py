@@ -63,8 +63,18 @@ _BASE_IGNORE_DOMAINS = {
 
 
 def _ignore_domains(cfg: dict) -> set[str]:
+    """Base set + mac-agent config + shared ignored_domains.txt written by PA (synced via iCloud)."""
     custom = cfg.get("ignored_domains", [])
-    return _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
+    domains = _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
+    log_folder = cfg.get("log_folder", "")
+    if log_folder:
+        shared = Path(log_folder).expanduser() / "ignored_domains.txt"
+        if shared.exists():
+            for line in shared.read_text(encoding="utf-8").splitlines():
+                line = line.strip().lower().removeprefix("www.").strip("/")
+                if line and not line.startswith("#"):
+                    domains.add(line)
+    return domains
 
 # ---------------------------------------------------------------------------
 # Browser history

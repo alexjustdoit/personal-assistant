@@ -36,10 +36,35 @@ _BASE_IGNORE_DOMAINS = {
 }
 
 
+_SHARED_IGNORE_FILE = "ignored_domains.txt"
+
+
 def _ignore_domains() -> set[str]:
-    """Base set + user-configured ignored_domains from config."""
+    """Base set + config ignored_domains + shared ignored_domains.txt in log folder."""
     custom = config.get("activity_tracking", {}).get("ignored_domains", [])
-    return _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
+    domains = _BASE_IGNORE_DOMAINS | {d.lower().removeprefix("www.").strip("/") for d in custom}
+    log_folder = config.get("activity_tracking", {}).get("log_folder", "")
+    if log_folder:
+        shared = Path(log_folder) / _SHARED_IGNORE_FILE
+        if shared.exists():
+            for line in shared.read_text(encoding="utf-8").splitlines():
+                line = line.strip().lower().removeprefix("www.").strip("/")
+                if line and not line.startswith("#"):
+                    domains.add(line)
+    return domains
+
+
+def _write_shared_ignore_file():
+    """Write all ignored domains to ignored_domains.txt in the log folder (syncs to mac-agent via iCloud)."""
+    log_folder = config.get("activity_tracking", {}).get("log_folder", "")
+    if not log_folder:
+        return
+    all_domains = sorted(
+        d for d in config.get("activity_tracking", {}).get("ignored_domains", []) if d
+    )
+    path = Path(log_folder) / _SHARED_IGNORE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(all_domains) + "\n", encoding="utf-8")
 
 
 def add_ignored_domain(domain: str) -> bool:
@@ -73,6 +98,9 @@ def add_ignored_domain(domain: str) -> bool:
     log_folder = config.get("activity_tracking", {}).get("log_folder", "")
     if log_folder:
         purge_domain_from_logs(domain, log_folder)
+
+    # Sync to mac-agent via shared file in iCloud log folder
+    _write_shared_ignore_file()
 
     return True
 
