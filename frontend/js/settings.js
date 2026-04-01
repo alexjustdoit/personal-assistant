@@ -22,6 +22,7 @@ function populate(cfg) {
   setValue('s-briefing-provider', llm.briefing_provider || '');
   setValue('s-ollama-url', llm.ollama_url || '');
   setValue('s-ollama-model', llm.model || '');
+  setValue('s-detection-model', llm.detection_model || '');
 
   // API keys: show masked value as placeholder, input stays blank
   setPlaceholder('s-anthropic', cfg.anthropic_api_key || '');
@@ -49,6 +50,40 @@ function populate(cfg) {
   setValue('s-news-topics', topics);
 
   setValue('s-ntfy', (cfg.notifications || {}).ntfy_topic || '');
+
+  // Voice
+  const stt = cfg.stt || {};
+  const tts = cfg.tts || {};
+  document.getElementById('s-stt-enabled').checked = !!stt.enabled;
+  setValue('s-stt-model', stt.model || 'base');
+  setValue('s-stt-device', stt.device || 'cpu');
+  document.getElementById('s-tts-enabled').checked = !!tts.enabled;
+  setValue('s-tts-voice', tts.voice || 'af_heart');
+  document.getElementById('s-tts-speed').value = tts.speed ?? 1.0;
+
+  // Notes folders
+  const folders = Array.isArray(cfg.notes_folders) ? cfg.notes_folders : [];
+  const foldersEl = document.getElementById('s-notes-folders');
+  foldersEl.innerHTML = '';
+  for (const path of folders) addFolderRow(path);
+}
+
+function addFolderRow(path = '') {
+  const row = document.createElement('div');
+  row.className = 'flex gap-2';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = path;
+  input.placeholder = 'C:\\Users\\you\\Notes\\activity';
+  input.className = 'form-input flex-1 text-sm font-mono';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = '×';
+  removeBtn.className = 'px-2 text-gray-600 hover:text-red-400 transition-colors text-lg leading-none flex-shrink-0';
+  removeBtn.addEventListener('click', () => row.remove());
+  row.appendChild(input);
+  row.appendChild(removeBtn);
+  document.getElementById('s-notes-folders').appendChild(row);
 }
 
 function setValue(id, val) {
@@ -102,6 +137,11 @@ function buildUpdatedConfig() {
   maybeUpdateKey('s-todoist', null, ['todoist', 'api_token']);
   maybeUpdateKey('s-govee', null, ['govee', 'api_key']);
 
+  // Detection model
+  const detModel = document.getElementById('s-detection-model').value.trim();
+  if (detModel) cfg.llm.detection_model = detModel;
+  else delete cfg.llm.detection_model;
+
   // Briefing
   cfg.briefing = cfg.briefing || {};
   cfg.briefing.enabled = document.getElementById('s-briefing-enabled').checked;
@@ -128,10 +168,29 @@ function buildUpdatedConfig() {
   const ntfy = document.getElementById('s-ntfy').value.trim();
   if (ntfy) cfg.notifications.ntfy_topic = ntfy;
 
+  // Voice
+  cfg.stt = {
+    enabled: document.getElementById('s-stt-enabled').checked,
+    model: document.getElementById('s-stt-model').value,
+    device: document.getElementById('s-stt-device').value,
+    compute_type: document.getElementById('s-stt-device').value === 'cuda' ? 'float16' : 'int8',
+  };
+  cfg.tts = {
+    enabled: document.getElementById('s-tts-enabled').checked,
+    voice: document.getElementById('s-tts-voice').value,
+    speed: parseFloat(document.getElementById('s-tts-speed').value) || 1.0,
+  };
+
+  // Notes folders
+  const folderInputs = document.querySelectorAll('#s-notes-folders input');
+  cfg.notes_folders = Array.from(folderInputs).map(i => i.value.trim()).filter(Boolean);
+
   return cfg;
 }
 
 // --- Save ---
+
+document.getElementById('s-notes-add').addEventListener('click', () => addFolderRow());
 
 document.getElementById('save-btn').addEventListener('click', async () => {
   const btn = document.getElementById('save-btn');

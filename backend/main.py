@@ -212,6 +212,16 @@ async def get_briefing_status():
     return {"status": _briefing_state["status"]}
 
 
+@app.get("/api/weather/forecast")
+async def get_weather_forecast():
+    from backend.services.weather import weather_service
+    try:
+        forecast = await weather_service.get_forecast()
+        return {"forecast": forecast}
+    except Exception:
+        return {"forecast": []}
+
+
 @app.get("/api/calendar/events")
 async def get_calendar_events():
     from backend.services.calendar_service import calendar_service

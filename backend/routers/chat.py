@@ -191,6 +191,27 @@ async def _detect_ignore_site(message: str) -> str | None:
     return None
 
 
+async def _auto_title_and_send(session_id: str, user_message: str, response_preview: str, websocket):
+    """Generate a short chat title after the first exchange and push it to the client."""
+    try:
+        already_named = await asyncio.to_thread(memory_service.has_custom_name, session_id)
+        if already_named:
+            return
+        response = await llm_router.complete_detect([
+            {"role": "system", "content": "Write a short chat title. Reply with only the title — no quotes, no period."},
+            {"role": "user", "content": (
+                f"User: {user_message[:200]}\nAssistant: {response_preview[:200]}\n\n"
+                "Title (3-6 words):"
+            )},
+        ])
+        title = response.strip().strip('"\'').strip('.')[:80]
+        if title:
+            await asyncio.to_thread(memory_service.rename_chat, session_id, title)
+            await websocket.send_text(json.dumps({"type": "title", "title": title}))
+    except Exception:
+        pass
+
+
 async def _check_for_followups(user_message: str):
     """If the user mentioned a future commitment not flagged as a reminder, save it and notify."""
     try:
@@ -421,6 +442,10 @@ async def chat_websocket(websocket: WebSocket):
                 history.append({"role": "assistant", "content": full_response})
                 memory_service.save_message(session_id, "assistant", full_response)
                 await websocket.send_text(json.dumps({"type": "done"}))
+
+                # Auto-title on first exchange
+                if len(history) == 2 and user_message:
+                    asyncio.create_task(_auto_title_and_send(session_id, user_message, full_response, websocket))
 
                 # Proactive follow-up: save implied commitments as reminders
                 if user_message and not _explicit_reminder and _FOLLOWUP_HINT.search(user_message):

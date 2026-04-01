@@ -367,6 +367,9 @@ function connect() {
       span.className = 'italic text-gray-500 text-xs';
       span.textContent = `Searching the web for "${data.query}"…`;
       currentBubble.appendChild(span);
+    } else if (data.type === 'title') {
+      chatTitle.textContent = data.title;
+      loadChatList();
     } else if (data.type === 'done') {
       finishStreaming();
       loadChatList(); // refresh names after first assistant reply

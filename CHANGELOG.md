@@ -9,6 +9,26 @@ All notable changes to this project are documented here.
 ### Next up
 
 - **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
+- **Conversation summarization** — compress old messages when context window fills up
+
+---
+
+## [0.14] — 2026-03-31
+
+### Added — Auto-title chats
+- After the first assistant response in a new chat, the backend generates a short title (3-6 words) using the detection model in the background
+- Title pushed to the client via `{"type": "title"}` WebSocket message — sidebar and header update instantly without a reload
+- Only fires on the first exchange; skips if the chat already has a custom name
+
+### Added — Weather forecast
+- 3-day forecast row below current conditions on the home weather tile (Mon/Tue/Wed with emoji, high, low)
+- `WeatherService.get_forecast()` — calls OWM 5-day/3-hour forecast endpoint, groups by day, skips today
+- `GET /api/weather/forecast` endpoint; fetched independently in `onBriefingReady` and appended to the tile
+
+### Added — Settings: voice, notes folders, detection model
+- **Voice section** — STT (enabled, model size, device) and TTS (enabled, voice, speed) now configurable without re-running the setup wizard
+- **Notes Folders section** — dynamic add/remove list of watched paths; syncs directly to `notes_folders` in config
+- **Detection model field** — set a fast Ollama model (e.g. `llama3.2:3b`) for intent classification without changing the main chat model
 
 ---
 

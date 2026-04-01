@@ -32,6 +32,49 @@ class WeatherService:
             "unit": unit_symbol,
         }
 
+    async def get_forecast(self) -> list[dict]:
+        if not self.enabled or not self.api_key or not self.city:
+            return []
+        url = "https://api.openweathermap.org/data/2.5/forecast"
+        async with httpx.AsyncClient() as client:
+            res = await client.get(url, params={
+                "q": self.city,
+                "appid": self.api_key,
+                "units": self.units,
+                "cnt": 32,  # ~4 days of 3-hour slots
+            }, timeout=10)
+            res.raise_for_status()
+            data = res.json()
+
+        unit_symbol = "°F" if self.units == "imperial" else "°C"
+        from datetime import datetime
+        from collections import Counter
+
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        days: dict[str, dict] = {}
+        for item in data["list"]:
+            date = item["dt_txt"][:10]
+            if date == today:
+                continue  # skip today — we already show current conditions
+            if date not in days:
+                days[date] = {"temps": [], "descriptions": []}
+            days[date]["temps"].append(item["main"]["temp"])
+            days[date]["descriptions"].append(item["weather"][0]["description"])
+
+        result = []
+        for date in sorted(days.keys())[:3]:
+            d = days[date]
+            desc = Counter(d["descriptions"]).most_common(1)[0][0].capitalize()
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            result.append({
+                "label": dt.strftime("%a"),  # Mon, Tue, Wed
+                "high": round(max(d["temps"])),
+                "low": round(min(d["temps"])),
+                "description": desc,
+                "unit": unit_symbol,
+            })
+        return result
+
     def format(self, weather: dict) -> str:
         return (
             f"{weather['description']}, {weather['temp']}{weather['unit']} "

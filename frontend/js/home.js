@@ -292,9 +292,13 @@ function weatherEmoji(description) {
   return '🌡️';
 }
 
-function buildWeatherTile(weather) {
+function buildWeatherTile(weather, forecast) {
   const tile = document.createElement('div');
-  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-5';
+  tile.id = 'weather-tile';
+  tile.className = 'bg-gray-900 border border-gray-800 rounded-2xl p-5';
+
+  const current = document.createElement('div');
+  current.className = 'flex items-center gap-5';
 
   const icon = document.createElement('div');
   icon.className = 'text-5xl flex-shrink-0';
@@ -318,8 +322,42 @@ function buildWeatherTile(weather) {
   info.appendChild(temp);
   info.appendChild(desc);
   info.appendChild(meta);
-  tile.appendChild(icon);
-  tile.appendChild(info);
+  current.appendChild(icon);
+  current.appendChild(info);
+  tile.appendChild(current);
+
+  if (forecast && forecast.length > 0) {
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-800';
+    for (const day of forecast) {
+      const col = document.createElement('div');
+      col.className = 'flex flex-col items-center gap-0.5';
+
+      const label = document.createElement('div');
+      label.className = 'text-xs font-medium text-gray-500';
+      label.textContent = day.label;
+
+      const emoji = document.createElement('div');
+      emoji.className = 'text-xl';
+      emoji.textContent = weatherEmoji(day.description);
+
+      const hi = document.createElement('div');
+      hi.className = 'text-xs font-medium text-gray-200';
+      hi.textContent = `${day.high}°`;
+
+      const lo = document.createElement('div');
+      lo.className = 'text-xs text-gray-600';
+      lo.textContent = `${day.low}°`;
+
+      col.appendChild(label);
+      col.appendChild(emoji);
+      col.appendChild(hi);
+      col.appendChild(lo);
+      row.appendChild(col);
+    }
+    tile.appendChild(row);
+  }
+
   return tile;
 }
 
@@ -642,11 +680,11 @@ function renderBriefing(data) {
   if (hasWeather && hasCalendar) {
     const row = document.createElement('div');
     row.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
-    row.appendChild(buildWeatherTile(data.weather));
+    row.appendChild(buildWeatherTile(data.weather, data.forecast));
     row.appendChild(buildCalendarTile(data.events));
     container.appendChild(row);
   } else if (hasWeather) {
-    container.appendChild(buildWeatherTile(data.weather));
+    container.appendChild(buildWeatherTile(data.weather, data.forecast));
   } else if (hasCalendar) {
     container.appendChild(buildCalendarTile(data.events));
   }
@@ -686,6 +724,50 @@ function onBriefingReady(data) {
   loadTasksTile();
   loadEmailTile();
   loadRemindersTile();
+  loadForecast();
+}
+
+async function loadForecast() {
+  try {
+    const res = await fetch('/api/weather/forecast');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.forecast || data.forecast.length === 0) return;
+    const tile = document.getElementById('weather-tile');
+    if (!tile) return;
+    // Re-render weather tile with forecast (current conditions already in tile's data attribute)
+    // Find current weather from briefing data stored on the tile
+    const existing = tile.querySelector('.text-3xl');
+    if (!existing) return;
+    // Append forecast row if not already present
+    if (tile.querySelector('.grid-cols-3')) return;
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-800';
+    for (const day of data.forecast) {
+      const col = document.createElement('div');
+      col.className = 'flex flex-col items-center gap-0.5';
+      const label = document.createElement('div');
+      label.className = 'text-xs font-medium text-gray-500';
+      label.textContent = day.label;
+      const emoji = document.createElement('div');
+      emoji.className = 'text-xl';
+      emoji.textContent = weatherEmoji(day.description);
+      const hi = document.createElement('div');
+      hi.className = 'text-xs font-medium text-gray-200';
+      hi.textContent = `${day.high}°`;
+      const lo = document.createElement('div');
+      lo.className = 'text-xs text-gray-600';
+      lo.textContent = `${day.low}°`;
+      col.appendChild(label);
+      col.appendChild(emoji);
+      col.appendChild(hi);
+      col.appendChild(lo);
+      row.appendChild(col);
+    }
+    tile.appendChild(row);
+  } catch {
+    // Non-fatal
+  }
 }
 
 async function loadBriefing(force = false) {

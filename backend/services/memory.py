@@ -291,6 +291,14 @@ class MemoryService:
             conn.execute("DELETE FROM chat_names WHERE session_id = ?", (session_id,))
             conn.commit()
 
+    def has_custom_name(self, session_id: str) -> bool:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT name FROM chat_names WHERE session_id = ? AND name != ''",
+                (session_id,),
+            ).fetchone()
+        return bool(row)
+
     def rename_chat(self, session_id: str, name: str):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
