@@ -61,7 +61,11 @@ _CONFIG_PROMPT = (
 )
 
 _CALENDAR_HINT = re.compile(
-    r"\b(schedule|book|create an? event|add (?:an? )?(?:event|meeting|appointment)|put on (?:my )?calendar|block (?:off )?(?:time|my)|meeting|appointment)\b",
+    r"\b(schedule|book|create an? event|add (?:an? )?(?:event|meeting|appointment)|put on (?:my )?calendar|block (?:off )?(?:time|my)|meeting|appointment|what(?:'s| is) on my calendar|what do i have|what am i doing|my schedule|calendar this|anything (?:on |scheduled|planned))\b",
+    re.I,
+)
+_CALENDAR_READ_HINT = re.compile(
+    r"\b(what(?:'s| is) on my calendar|what do i have|what am i doing|my schedule|calendar this|anything (?:on |scheduled|planned)|do i have|upcoming events?|next (?:week|month|few days)|this (?:week|month|weekend))\b",
     re.I,
 )
 
@@ -93,12 +97,13 @@ _MEMORY_PROMPT = (
 
 _TODOIST_SYSTEM = "You detect task management intents. Reply with JSON only."
 _TODOIST_PROMPT = (
-    "Does this message want to add, list, or complete a task in a to-do list?\n"
+    "Does this message want to add, list, or complete tasks in a to-do list?\n"
     'Message: "{msg}"\n'
-    'JSON: {{"action": "add", "task": "task text", "due": "due string or null", "project": "project name or null"}} '
-    'or {{"action": "list"}} '
-    'or {{"action": "complete", "task_name": "task name"}} '
-    'or {{"action": null}}'
+    'For a single task: {{"action": "add", "task": "task text", "due": "due string or null", "project": "project name or null"}}\n'
+    'For multiple tasks: {{"action": "add_many", "tasks": [{{"task": "...", "due": null, "project": null}}, ...]}}\n'
+    'To list: {{"action": "list"}}\n'
+    'To complete one: {{"action": "complete", "task_name": "task name"}}\n'
+    'No intent: {{"action": null}}'
 )
 
 _GOVEE_SYSTEM = "You detect smart home / light control intents. Reply with JSON only."
@@ -416,6 +421,19 @@ async def chat_websocket(websocket: WebSocket):
             from backend.services.calendar_service import calendar_service
             if user_message and calendar_service.caldav_enabled() and _CALENDAR_HINT.search(user_message):
                 detect_tasks["calendar"] = asyncio.create_task(_detect_calendar(user_message))
+
+            # --- Calendar read: inject upcoming events for schedule queries ---
+            if user_message and calendar_service.enabled and _CALENDAR_READ_HINT.search(user_message):
+                try:
+                    events = await calendar_service.get_events()
+                    if events:
+                        lines = "\n".join(
+                            f'- [{e["status"]}] {e["title"]}: {e["start"]}'
+                            for e in events
+                        )
+                        system_prompt += f"\n\nUpcoming calendar events (today/tomorrow):\n{lines}"
+                except Exception:
+                    pass
             if user_message and _CONFIG_HINT.search(user_message):
                 detect_tasks["config_update"] = asyncio.create_task(_detect_config_update(user_message))
             if user_message and _IGNORE_SITE_HINT.search(user_message):
@@ -486,6 +504,20 @@ async def chat_websocket(websocket: WebSocket):
                         system_prompt += f'\n\n[Todoist] Added task: "{task_content}"{proj_label}' + (f', due: {due}' if due else '') + '. Confirm to the user.'
                     else:
                         system_prompt += '\n\n[Todoist] Failed to add the task. Apologize briefly.'
+                elif action == "add_many":
+                    task_list = todoist_result.get("tasks", [])
+                    added, failed = [], []
+                    for t in task_list:
+                        content = t.get("task", "")
+                        if not content:
+                            continue
+                        result = await add_task(content, t.get("due"), None)
+                        (added if result else failed).append(content)
+                    if added:
+                        lines = "\n".join(f'- "{t}"' for t in added)
+                        system_prompt += f'\n\n[Todoist] Added {len(added)} tasks:\n{lines}\nConfirm to the user.'
+                    if failed:
+                        system_prompt += f'\n\n[Todoist] Failed to add: {", ".join(failed)}.'
                 elif action == "list":
                     tasks = await get_tasks("today | overdue")
                     if tasks:
@@ -598,6 +630,8 @@ async def chat_websocket(websocket: WebSocket):
                 ctx_items.append("summary")
             if "personal notes" in system_prompt:
                 ctx_items.append("notes")
+            if "calendar events" in system_prompt:
+                ctx_items.append("calendar")
             if "Claude Code memory" in system_prompt:
                 ctx_items.append("memory files")
             if search_result and search_result[0]:

@@ -626,11 +626,30 @@ function appendError(message) {
 function appendContextBadge(items) {
   const el = document.createElement('div');
   el.className = 'flex justify-start px-1 mb-1';
-  const badge = document.createElement('span');
-  badge.className = 'text-xs text-gray-700 flex items-center gap-1';
+  const badge = document.createElement('button');
+  badge.className = 'text-xs text-gray-700 hover:text-gray-500 flex items-center gap-1 transition-colors group/ctx';
+  badge.title = 'Context used for this reply';
   badge.innerHTML = `<svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
   badge.appendChild(document.createTextNode(items.join(' · ')));
+
+  // Expand to show full item list on click
+  let expanded = false;
+  const detail = document.createElement('div');
+  detail.className = 'hidden mt-1 ml-4 space-y-0.5';
+  items.forEach(item => {
+    const line = document.createElement('div');
+    line.className = 'text-xs text-gray-600';
+    line.textContent = '· ' + item;
+    detail.appendChild(line);
+  });
+
+  badge.addEventListener('click', () => {
+    expanded = !expanded;
+    detail.classList.toggle('hidden', !expanded);
+  });
+
   el.appendChild(badge);
+  el.appendChild(detail);
   messagesEl.appendChild(el);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
