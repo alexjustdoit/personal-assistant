@@ -32,11 +32,24 @@ async def get_tasks(filter_str: str = "today | overdue") -> list[dict]:
         return []
 
 
-async def add_task(content: str, due_string: str | None = None) -> dict | None:
+async def get_projects() -> list[dict]:
+    """Return all user projects."""
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(f"{_BASE}/projects", headers=_headers(), timeout=10)
+            res.raise_for_status()
+            return res.json()
+    except Exception:
+        return []
+
+
+async def add_task(content: str, due_string: str | None = None, project_id: str | None = None) -> dict | None:
     """Create a new task. Returns the created task dict or None on failure."""
     payload: dict = {"content": content}
     if due_string:
         payload["due_string"] = due_string
+    if project_id:
+        payload["project_id"] = project_id
     try:
         async with httpx.AsyncClient() as client:
             res = await client.post(

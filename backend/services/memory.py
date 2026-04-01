@@ -99,10 +99,51 @@ class MemoryService:
     def get_history(self, session_id: str, limit: int = 40) -> list[dict]:
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
-                "SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                "SELECT role, content, timestamp FROM messages WHERE session_id = ? AND role != 'summary' ORDER BY id DESC LIMIT ?",
                 (session_id, limit),
             ).fetchall()
         return [{"role": r, "content": c, "timestamp": t} for r, c, t in reversed(rows)]
+
+    def get_conversation_summary(self, session_id: str) -> str | None:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT content FROM messages WHERE session_id = ? AND role = 'summary' ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+        return row[0] if row else None
+
+    def get_messages_to_summarize(self, session_id: str, count: int = 20) -> list[dict]:
+        with sqlite3.connect(DB_PATH) as conn:
+            sum_row = conn.execute(
+                "SELECT id FROM messages WHERE session_id = ? AND role = 'summary' ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            after_id = sum_row[0] if sum_row else 0
+            rows = conn.execute(
+                "SELECT id, role, content FROM messages WHERE session_id = ? AND role != 'summary' AND id > ? ORDER BY id ASC LIMIT ?",
+                (session_id, after_id, count),
+            ).fetchall()
+        return [{"id": r[0], "role": r[1], "content": r[2]} for r in rows]
+
+    def compress_messages(self, session_id: str, message_ids: list[int], summary: str):
+        with sqlite3.connect(DB_PATH) as conn:
+            placeholders = ",".join("?" * len(message_ids))
+            conn.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", message_ids)
+            conn.execute(
+                "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, 'summary', ?, ?)",
+                (session_id, summary, datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+
+    def delete_last_messages(self, session_id: str, count: int):
+        with sqlite3.connect(DB_PATH) as conn:
+            ids = [r[0] for r in conn.execute(
+                "SELECT id FROM messages WHERE session_id = ? AND role != 'summary' ORDER BY id DESC LIMIT ?",
+                (session_id, count),
+            ).fetchall()]
+            if ids:
+                conn.execute(f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids))})", ids)
+                conn.commit()
 
     # --- ChromaDB: personal memory ---
 
@@ -347,7 +388,7 @@ class MemoryService:
 
     # --- System prompt builder ---
 
-    def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None, query: str | None = None) -> str:
+    def build_system_prompt(self, memories: list[str], reminders: list[dict] | None = None, query: str | None = None, conv_summary: str | None = None) -> str:
         # Append optional integration capabilities to the base prompt
         prompt = SYSTEM_BASE
         extra_caps = []
@@ -366,6 +407,8 @@ class MemoryService:
         if extra_caps:
             prompt += "\n" + "\n".join(extra_caps)
 
+        if conv_summary:
+            prompt += f"\n\nSummary of earlier conversation:\n{conv_summary}"
         if memories:
             lines = "\n".join(f"- {m}" for m in memories)
             prompt += f"\n\nThings you know about the user:\n{lines}"

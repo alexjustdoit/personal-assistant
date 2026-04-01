@@ -9,7 +9,26 @@ All notable changes to this project are documented here.
 ### Next up
 
 - **Runtime config editing** — update config values (e.g. news topics) through chat; live reload without restart
-- **Conversation summarization** — compress old messages when context window fills up
+- **Calendar write** — create events from chat
+
+---
+
+## [0.15] — 2026-03-31
+
+### Added — Copy & Regenerate on messages
+- **Copy button** appears on hover for all assistant messages (history and fresh responses) — uses Clipboard API, shows "Copied!" briefly
+- **Regenerate button** appears on hover for freshly streamed responses — deletes the last assistant turn from DB, removes it from the UI, re-sends the same user message with `regenerate: true` flag
+- Backend handles `regenerate: true`: pops the stale assistant from in-memory history, skips re-saving the user message, streams a fresh response
+
+### Added — Conversation summarization
+- When history reaches 40 messages, the oldest 20 are compressed into a `role='summary'` row in the DB via `MemoryService.compress_messages()`
+- Summary is loaded each message turn and injected into the system prompt as "Summary of earlier conversation" context
+- `get_history()` now filters out `role='summary'` rows so they never appear in chat UI or history endpoints
+
+### Added — Todoist project support
+- LLM detection now extracts an optional `"project"` field from task-add intents (e.g. "add this to my Work project")
+- `get_projects()` fetches all Todoist projects; matched by case-insensitive substring
+- `add_task()` now accepts `project_id`; resolved project name appears in the confirmation message
 
 ---
 

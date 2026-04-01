@@ -64,7 +64,7 @@ _TODOIST_SYSTEM = "You detect task management intents. Reply with JSON only."
 _TODOIST_PROMPT = (
     "Does this message want to add, list, or complete a task in a to-do list?\n"
     'Message: "{msg}"\n'
-    'JSON: {{"action": "add", "task": "task text", "due": "due string or null"}} '
+    'JSON: {{"action": "add", "task": "task text", "due": "due string or null", "project": "project name or null"}} '
     'or {{"action": "list"}} '
     'or {{"action": "complete", "task_name": "task name"}} '
     'or {{"action": null}}'
@@ -236,6 +236,27 @@ async def _check_for_followups(user_message: str):
         pass
 
 
+async def _summarize_if_needed(session_id: str, history: list):
+    """When history hits 40 messages, compress the oldest 20 into a summary row."""
+    if len(history) < 40:
+        return
+    try:
+        msgs = await asyncio.to_thread(memory_service.get_messages_to_summarize, session_id, 20)
+        if len(msgs) < 10:
+            return
+        block = "\n".join(f"{m['role'].upper()}: {m['content'][:300]}" for m in msgs)
+        summary = await llm_router.complete([
+            {"role": "system", "content": "Summarize this conversation excerpt concisely in 3-5 sentences, preserving key facts, decisions, and context. Reply with only the summary."},
+            {"role": "user", "content": block},
+        ])
+        if summary.strip():
+            ids = [m["id"] for m in msgs]
+            await asyncio.to_thread(memory_service.compress_messages, session_id, ids, summary.strip())
+            del history[:20]
+    except Exception:
+        pass
+
+
 async def _auto_extract_memories(message: str):
     try:
         response = await llm_router.complete([
@@ -265,11 +286,16 @@ async def chat_websocket(websocket: WebSocket):
             payload = json.loads(data)
             user_message = payload.get("content", "").strip()
             image_data = payload.get("image")  # "data:<media_type>;base64,<data>" or None
+            is_regenerate = payload.get("regenerate", False)
 
             if not user_message and not image_data:
                 continue
 
             provider_override = payload.get("provider") or None
+
+            # Regenerate: drop the last assistant turn from in-memory history
+            if is_regenerate and history and history[-1]["role"] == "assistant":
+                history.pop()
 
             # --- Memory ---
             if user_message:
@@ -290,11 +316,12 @@ async def chat_websocket(websocket: WebSocket):
             # --- System prompt ---
             relevant_memories = await asyncio.to_thread(memory_service.search_memories, user_message) if user_message else []
             pending_reminders = await asyncio.to_thread(memory_service.get_pending_reminders)
-            system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders, query=user_message)
+            conv_summary = await asyncio.to_thread(memory_service.get_conversation_summary, session_id)
+            system_prompt = memory_service.build_system_prompt(relevant_memories, pending_reminders, query=user_message, conv_summary=conv_summary)
 
             # --- Parallel: search + todoist detect ---
             from backend.services.search import search_enabled, web_search
-            from backend.services.todoist import todoist_enabled, get_tasks, add_task, complete_task, find_task_by_name
+            from backend.services.todoist import todoist_enabled, get_tasks, add_task, complete_task, find_task_by_name, get_projects
             from backend.services.govee import govee_enabled, execute_govee_intent
 
             from backend.services.activity_tracker import add_ignored_domain
@@ -356,9 +383,17 @@ async def chat_websocket(websocket: WebSocket):
                 if action == "add":
                     task_content = todoist_result.get("task", user_message)
                     due = todoist_result.get("due")
-                    created = await add_task(task_content, due)
+                    project_name = todoist_result.get("project")
+                    project_id = None
+                    if project_name:
+                        projects = await get_projects()
+                        match = next((p for p in projects if project_name.lower() in p.get("name", "").lower()), None)
+                        if match:
+                            project_id = match["id"]
+                    created = await add_task(task_content, due, project_id)
                     if created:
-                        system_prompt += f'\n\n[Todoist] Added task: "{task_content}"' + (f', due: {due}' if due else '') + '. Confirm to the user.'
+                        proj_label = f' in project "{match["name"]}"' if project_id and match else ''
+                        system_prompt += f'\n\n[Todoist] Added task: "{task_content}"{proj_label}' + (f', due: {due}' if due else '') + '. Confirm to the user.'
                     else:
                         system_prompt += '\n\n[Todoist] Failed to add the task. Apologize briefly.'
                 elif action == "list":
@@ -414,7 +449,7 @@ async def chat_websocket(websocket: WebSocket):
                 system_prompt += f"\n\nContext from past work sessions:\n{lines}"
 
             # --- Save & build messages ---
-            if user_message:
+            if user_message and not is_regenerate:
                 history.append({"role": "user", "content": user_message})
                 memory_service.save_message(session_id, "user", user_message)
 
@@ -446,6 +481,9 @@ async def chat_websocket(websocket: WebSocket):
                 # Auto-title on first exchange
                 if len(history) == 2 and user_message:
                     asyncio.create_task(_auto_title_and_send(session_id, user_message, full_response, websocket))
+
+                # Compress history when it gets long
+                asyncio.create_task(_summarize_if_needed(session_id, history))
 
                 # Proactive follow-up: save implied commitments as reminders
                 if user_message and not _explicit_reminder and _FOLLOWUP_HINT.search(user_message):

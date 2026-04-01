@@ -127,6 +127,13 @@ async def get_history(session_id: str):
     return {"messages": memory_service.get_history(session_id)}
 
 
+@app.delete("/api/history/{session_id}/last")
+async def delete_last_message(session_id: str, count: int = 1):
+    from backend.services.memory import memory_service
+    await asyncio.to_thread(memory_service.delete_last_messages, session_id, count)
+    return {"ok": True}
+
+
 @app.get("/api/chats")
 async def get_chats(archived: str = "false"):
     from backend.services.memory import memory_service

@@ -28,6 +28,8 @@ function switchToSession(id) {
   isStreaming = false;
   currentBubble = null;
   currentText = '';
+  lastUserMessage = '';
+  lastAssistantWrapper = null;
   messagesEl.innerHTML = '';
   welcomeEl.classList.remove('hidden');
   messagesEl.classList.add('hidden');
@@ -398,7 +400,7 @@ function formatTimestamp(tsInput) {
 function appendMessage(role, content = '', timestamp = null) {
   showMessages();
   const wrapper = document.createElement('div');
-  wrapper.className = `flex flex-col ${role === 'user' ? 'items-end' : 'items-start'}`;
+  wrapper.className = `group flex flex-col ${role === 'user' ? 'items-end' : 'items-start'}`;
 
   const bubble = document.createElement('div');
   bubble.className = role === 'user'
@@ -412,6 +414,25 @@ function appendMessage(role, content = '', timestamp = null) {
   }
 
   wrapper.appendChild(bubble);
+
+  if (role === 'user') {
+    lastUserMessage = content;
+  } else if (role === 'assistant' && content) {
+    lastAssistantWrapper = wrapper;
+    const actions = document.createElement('div');
+    actions.className = 'flex gap-2 mt-0.5 pl-1 opacity-0 group-hover:opacity-100 transition-opacity';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'text-xs text-gray-600 hover:text-gray-400 px-1 py-0.5 rounded transition-colors';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(content).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      });
+    });
+    actions.appendChild(copyBtn);
+    wrapper.appendChild(actions);
+  }
 
   if (timestamp) {
     const ts = document.createElement('div');
@@ -428,6 +449,8 @@ function appendMessage(role, content = '', timestamp = null) {
 
 let currentBubble = null;
 let currentText = '';
+let lastUserMessage = '';
+let lastAssistantWrapper = null;
 
 function startAssistantBubble() {
   currentText = '';
@@ -446,14 +469,43 @@ function appendToken(token) {
 function finishStreaming() {
   if (currentBubble) {
     currentBubble.classList.remove('streaming');
-    if (currentText) {
-      currentBubble.innerHTML = marked.parse(currentText);
+    const rawText = currentText;
+    if (rawText) {
+      currentBubble.innerHTML = marked.parse(rawText);
     }
-    // Add timestamp below the bubble
+
+    const wrapper = currentBubble.parentElement;
+    lastAssistantWrapper = wrapper;
+
+    // Copy + Regenerate action buttons
+    const actions = document.createElement('div');
+    actions.className = 'flex gap-2 mt-0.5 pl-1 opacity-0 group-hover:opacity-100 transition-opacity';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'text-xs text-gray-600 hover:text-gray-400 px-1 py-0.5 rounded transition-colors';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(rawText).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      });
+    });
+
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'text-xs text-gray-600 hover:text-gray-400 px-1 py-0.5 rounded transition-colors';
+    regenBtn.textContent = 'Regenerate';
+    regenBtn.addEventListener('click', doRegenerate);
+
+    actions.appendChild(copyBtn);
+    actions.appendChild(regenBtn);
+    wrapper.appendChild(actions);
+
+    // Timestamp
     const ts = document.createElement('div');
     ts.className = 'text-xs mt-1 text-gray-600 pl-1';
     ts.textContent = formatTimestamp(new Date());
-    currentBubble.parentElement.appendChild(ts);
+    wrapper.appendChild(ts);
+
     currentBubble = null;
     currentText = '';
   }
@@ -462,6 +514,34 @@ function finishStreaming() {
   sendBtn.classList.remove('hidden');
   stopBtn.classList.add('hidden');
   setInputEnabled(true);
+}
+
+async function doRegenerate() {
+  if (isStreaming || !socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!lastUserMessage) return;
+
+  try {
+    await fetch(`/api/history/${SESSION_ID}/last`, { method: 'DELETE' });
+  } catch {}
+
+  if (lastAssistantWrapper) {
+    lastAssistantWrapper.remove();
+    lastAssistantWrapper = null;
+  }
+
+  isStreaming = true;
+  sendBtn.classList.add('hidden');
+  stopBtn.classList.remove('hidden');
+  resetTTS();
+  setInputEnabled(false);
+  startAssistantBubble();
+
+  socket.send(JSON.stringify({
+    type: 'message',
+    content: lastUserMessage,
+    provider: providerSelect.value,
+    regenerate: true,
+  }));
 }
 
 function appendError(message) {
@@ -563,7 +643,9 @@ function sendMessage() {
   if (isStreaming || !socket || socket.readyState !== WebSocket.OPEN) return;
 
   if (currentImageData) appendImageMessage(currentImageData);
-  if (content) appendMessage('user', content, new Date());
+  if (content) {
+    appendMessage('user', content, new Date());
+  }
 
   inputEl.value = '';
   const imageToSend = currentImageData;
