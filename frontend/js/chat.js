@@ -50,11 +50,15 @@ function switchChat(sessionId) {
 
 // --- DOM refs ---
 
+// Configure marked
+marked.use({ breaks: true, gfm: true });
+
 const messagesEl = document.getElementById('messages');
 const welcomeEl = document.getElementById('welcome');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const stopBtn = document.getElementById('stop-btn');
+const exportBtn = document.getElementById('export-btn');
 const micBtn = document.getElementById('mic-btn');
 const ttsToggle = document.getElementById('tts-toggle');
 const statusDot = document.getElementById('status-dot');
@@ -328,18 +332,37 @@ function showMessages() {
   }
 }
 
-function appendMessage(role, content = '') {
+function formatTimestamp(tsInput) {
+  const d = tsInput instanceof Date ? tsInput
+    : new Date(typeof tsInput === 'string' && !tsInput.endsWith('Z') ? tsInput + 'Z' : tsInput);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function appendMessage(role, content = '', timestamp = null) {
   showMessages();
   const wrapper = document.createElement('div');
-  wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+  wrapper.className = `flex flex-col ${role === 'user' ? 'items-end' : 'items-start'}`;
 
   const bubble = document.createElement('div');
   bubble.className = role === 'user'
     ? 'max-w-xl bg-indigo-600 text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm'
     : 'max-w-xl bg-gray-800 text-gray-100 px-4 py-3 rounded-2xl rounded-tl-sm text-sm message-content';
 
-  bubble.textContent = content;
+  if (role === 'assistant' && content) {
+    bubble.innerHTML = marked.parse(content);
+  } else {
+    bubble.textContent = content;
+  }
+
   wrapper.appendChild(bubble);
+
+  if (timestamp) {
+    const ts = document.createElement('div');
+    ts.className = `text-xs mt-1 text-gray-600 ${role === 'user' ? 'pr-1' : 'pl-1'}`;
+    ts.textContent = formatTimestamp(timestamp);
+    wrapper.appendChild(ts);
+  }
+
   messagesEl.appendChild(wrapper);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -366,6 +389,14 @@ function appendToken(token) {
 function finishStreaming() {
   if (currentBubble) {
     currentBubble.classList.remove('streaming');
+    if (currentText) {
+      currentBubble.innerHTML = marked.parse(currentText);
+    }
+    // Add timestamp below the bubble
+    const ts = document.createElement('div');
+    ts.className = 'text-xs mt-1 text-gray-600 pl-1';
+    ts.textContent = formatTimestamp(new Date());
+    currentBubble.parentElement.appendChild(ts);
     currentBubble = null;
     currentText = '';
   }
@@ -475,7 +506,7 @@ function sendMessage() {
   if (isStreaming || !socket || socket.readyState !== WebSocket.OPEN) return;
 
   if (currentImageData) appendImageMessage(currentImageData);
-  if (content) appendMessage('user', content);
+  if (content) appendMessage('user', content, new Date());
 
   inputEl.value = '';
   const imageToSend = currentImageData;
@@ -654,6 +685,58 @@ function setTTS(enabled) {
 
 ttsToggle.addEventListener('click', () => setTTS(!ttsEnabled));
 
+// --- Briefing badge ---
+
+const briefingBadge = document.getElementById('briefing-badge');
+let _briefingBadgePoll = null;
+
+function checkBriefingBadge() {
+  fetch('/api/briefing/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'generating') {
+        briefingBadge.classList.remove('hidden');
+        if (!_briefingBadgePoll) {
+          _briefingBadgePoll = setInterval(checkBriefingBadge, 3000);
+        }
+      } else {
+        briefingBadge.classList.add('hidden');
+        if (_briefingBadgePoll) {
+          clearInterval(_briefingBadgePoll);
+          _briefingBadgePoll = null;
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+// --- Export ---
+
+exportBtn.addEventListener('click', async () => {
+  try {
+    const res = await fetch(`/api/history/${SESSION_ID}`);
+    const data = await res.json();
+    const messages = data.messages || [];
+    if (messages.length === 0) return;
+
+    const title = chatTitle.textContent || 'Chat';
+    const lines = [`# ${title}\n`];
+    for (const msg of messages) {
+      const label = msg.role === 'user' ? '**You**' : '**Assistant**';
+      const time = msg.timestamp ? ` — ${formatTimestamp(msg.timestamp)}` : '';
+      lines.push(`${label}${time}\n\n${msg.content}\n`);
+    }
+    const text = lines.join('\n---\n\n');
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {}
+});
+
 // --- Init ---
 
 async function loadProviders() {
@@ -696,7 +779,7 @@ async function loadHistory() {
     const data = await res.json();
     if (data.messages && data.messages.length > 0) {
       for (const msg of data.messages) {
-        appendMessage(msg.role, msg.content);
+        appendMessage(msg.role, msg.content, msg.timestamp || null);
       }
     }
   } catch {
@@ -716,3 +799,4 @@ loadProviders();
 initVoice();
 loadHistory();
 loadChatList();
+checkBriefingBadge();

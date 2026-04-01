@@ -123,6 +123,62 @@ document.getElementById('add-calendar-btn').addEventListener('click', () => {
   document.getElementById('add-calendar-btn').style.display = 'none';
 });
 
+// --- Email accounts ---
+
+let emailAccountCount = 0;
+
+function addEmailAccount(initial = false) {
+  emailAccountCount++;
+  const idx = emailAccountCount;
+  const list = document.getElementById('email-accounts-list');
+
+  const block = document.createElement('div');
+  block.className = 'p-3 bg-gray-800/50 rounded-xl space-y-3 relative';
+  block.dataset.emailIdx = idx;
+
+  const header = document.createElement('div');
+  header.className = 'flex items-center justify-between';
+  const label = document.createElement('p');
+  label.className = 'text-xs font-medium text-gray-400';
+  label.textContent = `Account ${idx}`;
+  header.appendChild(label);
+
+  if (!initial) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'text-xs text-gray-600 hover:text-red-400 transition-colors';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => block.remove());
+    header.appendChild(removeBtn);
+  }
+
+  block.innerHTML = `
+    <div class="grid grid-cols-3 gap-3">
+      <div class="form-group col-span-2">
+        <label class="form-label">IMAP server</label>
+        <input type="text" class="form-input email-server" placeholder="imap.gmail.com" spellcheck="false" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Port</label>
+        <input type="number" class="form-input email-port" value="993" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <input type="email" class="form-input email-username" placeholder="you@gmail.com" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password / App password</label>
+      <input type="password" class="form-input email-password" placeholder="••••••••••••••••" autocomplete="new-password" />
+    </div>
+  `;
+
+  block.prepend(header);
+  list.appendChild(block);
+}
+
+document.getElementById('add-email-btn').addEventListener('click', () => addEmailAccount(false));
+
 // --- Build config object ---
 
 function buildConfig() {
@@ -198,7 +254,18 @@ function buildConfig() {
     },
     todoist: { api_token: todoistToken },
     govee: { api_key: goveeKey },
-    email: { fetch_hours: 24, max_per_account: 20, accounts: [] },
+    email: {
+      fetch_hours: 24,
+      max_per_account: 20,
+      accounts: Array.from(document.querySelectorAll('#email-accounts-list [data-email-idx]'))
+        .map(block => ({
+          server: block.querySelector('.email-server').value.trim(),
+          port: parseInt(block.querySelector('.email-port').value) || 993,
+          username: block.querySelector('.email-username').value.trim(),
+          password: block.querySelector('.email-password').value,
+        }))
+        .filter(a => a.server && a.username),
+    },
     claude_memory: { path: '' },
     notes_folders: [],
     activity_tracking: {
@@ -259,4 +326,5 @@ document.getElementById('launch-btn').addEventListener('click', async () => {
 
 // --- Init ---
 
+addEmailAccount(true);
 showStep(1);
