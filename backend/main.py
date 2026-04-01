@@ -289,6 +289,38 @@ async def get_reminders():
     return {"reminders": reminders}
 
 
+@app.get("/api/notifications/pending")
+async def get_pending_notifications():
+    from backend.services.notification_queue import pop_all
+    return {"notifications": pop_all()}
+
+
+@app.get("/api/config")
+async def get_config():
+    """Return current config with secrets partially masked for the settings UI."""
+    import copy
+    cfg = copy.deepcopy(config)
+
+    def mask(val: str) -> str:
+        if not val or len(val) < 8:
+            return val
+        return val[:4] + "•" * (len(val) - 4)
+
+    # Mask API keys / passwords
+    for key in ("anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
+        if cfg.get(key):
+            cfg[key] = mask(cfg[key])
+    for section in ("govee", "todoist"):
+        for field in ("api_key", "api_token"):
+            if cfg.get(section, {}).get(field):
+                cfg[section][field] = mask(cfg[section][field])
+    for acct in cfg.get("email", {}).get("accounts", []):
+        if acct.get("password"):
+            acct["password"] = mask(acct["password"])
+
+    return cfg
+
+
 @app.post("/api/setup/test-govee")
 async def test_govee(request: Request):
     data = await request.json()
@@ -338,6 +370,13 @@ async def serve_memories():
     if not is_configured():
         return RedirectResponse("/setup")
     return FileResponse(frontend_path / "memories.html")
+
+
+@app.get("/settings")
+async def serve_settings():
+    if not is_configured():
+        return RedirectResponse("/setup")
+    return FileResponse(frontend_path / "settings.html")
 
 
 @app.get("/api/voice/status")

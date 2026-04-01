@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Personal Assistant</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="dark min-h-screen bg-gray-950 text-gray-100">
+
+  <div class="max-w-2xl mx-auto px-4 py-8 pb-24">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-8">
+      <a href="/" class="text-gray-500 hover:text-gray-300 transition-colors p-1.5 rounded-lg hover:bg-gray-800">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+      </a>
+      <h1 class="text-lg font-semibold text-gray-100">Settings</h1>
+    </div>
+
+    <form id="settings-form" class="space-y-8" autocomplete="off">
+
+      <!-- AI Engine -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">AI Engine</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="form-label">Default provider</label>
+              <select id="s-provider" class="form-input">
+                <option value="ollama">Ollama (local)</option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini (Google)</option>
+                <option value="groq">Groq</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Briefing provider</label>
+              <select id="s-briefing-provider" class="form-input">
+                <option value="">Same as default</option>
+                <option value="ollama">Ollama</option>
+                <option value="claude">Claude</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="groq">Groq</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="form-label">Ollama URL</label>
+              <input id="s-ollama-url" type="text" class="form-input" placeholder="http://localhost:11434" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ollama model</label>
+              <input id="s-ollama-model" type="text" class="form-input" placeholder="llama3.1:8b" />
+            </div>
+          </div>
+          <div class="border-t border-gray-800 pt-4 space-y-3">
+            <p class="text-xs text-gray-600">Leave a key field blank to keep the existing value. Enter a new value to replace it.</p>
+            <div class="form-group">
+              <label class="form-label">Anthropic API key</label>
+              <input id="s-anthropic" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">OpenAI API key</label>
+              <input id="s-openai" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Google Gemini API key</label>
+              <input id="s-gemini" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Groq API key</label>
+              <input id="s-groq" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Briefing -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Briefing</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-300">Morning briefing</div>
+              <div class="text-xs text-gray-600">Weather, calendar, news, email summary</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="s-briefing-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="form-label">Time (24h)</label>
+              <input id="s-briefing-time" type="time" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Timezone</label>
+              <input id="s-briefing-tz" type="text" class="form-input" placeholder="America/New_York" />
+              <p class="form-hint">IANA timezone name</p>
+            </div>
+          </div>
+          <div class="border-t border-gray-800 pt-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="text-sm text-gray-300">Evening briefing</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="s-evening-enabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Evening time (24h)</label>
+              <input id="s-evening-time" type="time" class="form-input" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Weather -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Weather</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="form-group">
+            <label class="form-label">OpenWeatherMap API key</label>
+            <input id="s-weather-key" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="form-label">City</label>
+              <input id="s-weather-city" type="text" class="form-input" placeholder="New York,US" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Units</label>
+              <select id="s-weather-units" class="form-input">
+                <option value="imperial">Imperial (°F)</option>
+                <option value="metric">Metric (°C)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- News -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">News &amp; Search</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="form-group">
+            <label class="form-label">Tavily API key <span class="text-gray-600 font-normal">(web search + news)</span></label>
+            <input id="s-news-key" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">News topics</label>
+            <input id="s-news-topics" type="text" class="form-input" placeholder="technology, local news, politics" />
+            <p class="form-hint">Comma-separated topics for your morning news digest</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Integrations -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Integrations</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+          <div class="form-group">
+            <label class="form-label">Todoist API token</label>
+            <input id="s-todoist" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+          </div>
+          <div class="border-t border-gray-800 pt-4 form-group">
+            <label class="form-label">Govee Developer API key</label>
+            <input id="s-govee" type="text" class="form-input font-mono" placeholder="Unchanged" spellcheck="false" />
+          </div>
+          <div class="border-t border-gray-800 pt-4 form-group">
+            <label class="form-label">ntfy topic</label>
+            <input id="s-ntfy" type="text" class="form-input" placeholder="my-assistant-topic" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Danger zone -->
+      <section>
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Reconfigure</h2>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <p class="text-sm text-gray-400 mb-3">Need to change voice, calendar, email accounts, or other advanced options?</p>
+          <a href="/setup" class="btn-secondary inline-block text-sm">Open full setup wizard →</a>
+        </div>
+      </section>
+
+    </form>
+  </div>
+
+  <!-- Sticky save bar -->
+  <div class="fixed bottom-0 left-0 right-0 bg-gray-950/90 backdrop-blur border-t border-gray-800 px-4 py-3">
+    <div class="max-w-2xl mx-auto flex items-center gap-4">
+      <span id="save-status" class="text-sm text-gray-500 flex-1"></span>
+      <button id="save-btn" class="btn-primary px-6">Save &amp; restart</button>
+    </div>
+  </div>
+
+  <script src="/static/js/settings.js"></script>
+</body>
+</html>

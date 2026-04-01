@@ -110,6 +110,7 @@ class SchedulerService:
         import asyncio
         from backend.services.memory import memory_service
         from backend.services.notifications import notification_service
+        from backend.services.notification_queue import push as push_browser
         try:
             due = await asyncio.to_thread(memory_service.get_due_reminders)
             for reminder in due:
@@ -118,6 +119,7 @@ class SchedulerService:
                     body=reminder["text"],
                     priority="high",
                 )
+                push_browser("Reminder", reminder["text"])
                 await asyncio.to_thread(memory_service.complete_reminder, reminder["id"])
         except Exception as e:
             print(f"[Reminders] Error: {e}")

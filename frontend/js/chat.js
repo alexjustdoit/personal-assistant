@@ -739,6 +739,21 @@ function setTTS(enabled) {
 
 ttsToggle.addEventListener('click', () => setTTS(!ttsEnabled));
 
+// --- Browser notifications ---
+
+async function pollBrowserNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const res = await fetch('/api/notifications/pending');
+    const data = await res.json();
+    for (const n of (data.notifications || [])) {
+      new Notification(n.title, { body: n.body, icon: '/static/icon.svg' });
+    }
+  } catch {}
+}
+
+setInterval(pollBrowserNotifications, 30000);
+
 // --- Briefing badge ---
 
 const briefingBadge = document.getElementById('briefing-badge');

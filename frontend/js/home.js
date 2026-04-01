@@ -916,6 +916,30 @@ quickInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); launchChat(quickInput.value); }
 });
 
+// --- Browser notifications ---
+
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+async function pollBrowserNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const res = await fetch('/api/notifications/pending');
+    const data = await res.json();
+    for (const n of (data.notifications || [])) {
+      new Notification(n.title, { body: n.body, icon: '/static/icon.svg' });
+    }
+  } catch {}
+}
+
+// Request permission on load, then poll every 30s
+requestNotificationPermission();
+setInterval(pollBrowserNotifications, 30000);
+
 // --- Init ---
 
 setGreeting();
