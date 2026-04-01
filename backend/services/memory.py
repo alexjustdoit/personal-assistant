@@ -3,7 +3,7 @@ import sqlite3
 import asyncio
 import uuid
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 DB_PATH = DATA_DIR / "conversations.db"
@@ -102,7 +102,7 @@ class MemoryService:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-                (session_id, role, content, datetime.utcnow().isoformat()),
+                (session_id, role, content, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
 
@@ -141,7 +141,7 @@ class MemoryService:
             conn.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", message_ids)
             conn.execute(
                 "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, 'summary', ?, ?)",
-                (session_id, summary, datetime.utcnow().isoformat()),
+                (session_id, summary, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
 
@@ -169,7 +169,7 @@ class MemoryService:
         col.add(
             documents=[text],
             ids=[str(uuid.uuid4())],
-            metadatas=[{"timestamp": datetime.utcnow().isoformat()}],
+            metadatas=[{"timestamp": datetime.now(timezone.utc).isoformat()}],
         )
 
     def search_memories(self, query: str, n: int = 3) -> list[str]:
@@ -210,7 +210,7 @@ class MemoryService:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 "INSERT INTO reminders (session_id, text, due_time, recurrence, created_at) VALUES (?, ?, ?, ?, ?)",
-                (session_id, text, due_time, recurrence, datetime.utcnow().isoformat()),
+                (session_id, text, due_time, recurrence, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
 
@@ -228,7 +228,7 @@ class MemoryService:
         return [{"id": r[0], "text": r[1], "due_time": r[2], "recurrence": r[3]} for r in rows]
 
     def get_due_reminders(self) -> list[dict]:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
                 "SELECT id, text, due_time, recurrence FROM reminders WHERE completed = 0 AND due_time IS NOT NULL AND due_time <= ?",
@@ -256,7 +256,7 @@ class MemoryService:
             conn.commit()
 
     def get_week_reminders(self, days: int = 7) -> dict:
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         with sqlite3.connect(DB_PATH) as conn:
             rows = conn.execute(
                 "SELECT id, text, due_time, completed FROM reminders WHERE created_at > ? ORDER BY created_at",
@@ -272,12 +272,12 @@ class MemoryService:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
                 "INSERT INTO briefings (content, generated_at) VALUES (?, ?)",
-                (content, datetime.utcnow().isoformat()),
+                (content, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
 
     def get_recent_briefing(self, max_age_hours: int = 6) -> dict | None:
-        cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat()
         with sqlite3.connect(DB_PATH) as conn:
             row = conn.execute(
                 "SELECT content, generated_at FROM briefings WHERE generated_at > ? ORDER BY id DESC LIMIT 1",
